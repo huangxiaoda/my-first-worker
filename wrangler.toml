@@ -1,0 +1,9 @@
+name = "my-first-apheriai" # 你的 Worker 名称，可以自定义
+main = "src/index.js"     # 入口文件
+compatibility_date = "2026-03-10"
+
+[vars]
+# 这里可以放环境变量，比如数据库连接信息等，现在先空着
+
+# 如果你想把 Worker 绑定到你自己的域名，取消下面这行的注释
+ routes = [{ pattern = "apheriai.com/*", zone_id = "你的域名Zone ID" }]
