@@ -4,7 +4,7 @@ compatibility_date = "2026-03-10"
 
 [vars]
 # 这里可以放环境变量，比如数据库连接信息等.
-# DEEPSEEK_API_KEY = "sk-b69459f378b94422b9cd20836c75e4cb"  # 敏感信息如 DEEPSEEK_API_KEY 已在控制台作为 Secret 配置
+# 敏感信息如 DEEPSEEK_API_KEY 已在控制台作为 Secret 配置
 
 # 新增：KV 命名空间（用于频率限制和日志）
 [[kv_namespaces]]
