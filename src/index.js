@@ -76,6 +76,11 @@ async function handleAIAssistant(request, env, ctx) {
     const body = await request.json();
     const { action, data } = body;
 
+     // ✅ 处理 test 请求（跳过频率限制）
+    if (action === 'test') {
+      return successResponse('连接成功', origin);
+    }
+   
     // 验证 action
     if (!action || !['optimize-resume', 'interview-feedback'].includes(action)) {
       return errorResponse('无效的 action', 400, origin);
