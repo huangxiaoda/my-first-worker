@@ -1,14 +1,8 @@
-// 常量定义
-const DEEPSEEK_API_ENDPOINT = 'https://api.deepseek.com/chat/completions';
-const ALLOWED_ORIGINS = [
-  'https://your-frontend-domain.com', // 替换为你的前端域名
-  'http://localhost:3000',
-  'http://127.0.0.1:5500'
-];
 
-// CORS 头生成函数
+//基于origin字符串的动态判断
 function getCorsHeaders(origin) {
-  if (ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes('*')) {
+  // 判断 origin 是否以 .apheriai.com 结尾，或者是 https://apheriai.com 本身
+  if (origin && (origin.endsWith('.apheriai.com') || origin === 'https://apheriai.com')) {
     return {
       'Access-Control-Allow-Origin': origin,
       'Access-Control-Allow-Methods': 'POST, OPTIONS',
@@ -16,6 +10,7 @@ function getCorsHeaders(origin) {
       'Access-Control-Max-Age': '86400',
     };
   }
+  // 如果 origin 不符合条件，返回空对象（不设置 CORS 头）
   return {};
 }
 
