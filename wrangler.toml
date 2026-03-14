@@ -10,3 +10,6 @@ compatibility_date = "2026-03-10"
 [[kv_namespaces]]
 binding = "KV_NAMESPACE"  # 必须与代码中的 env.KV_NAMESPACE 一致
 id = "0660b79cb26045fbaac54cee3b92fa60"
+# 路由配置（如果您绑定了自定义域名）
+ routes = [
+  { pattern = "api.apheriai.com", custom_domain = true }
