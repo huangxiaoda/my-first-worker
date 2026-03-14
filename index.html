@@ -1,0 +1,675 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI求职助手 · 完整版</title>
+    <style>
+        /* 所有样式保持不变，直接复制之前的完整样式 */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background: #f5fafd;
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 1.5rem;
+            padding: 1.5rem 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 20px rgba(0,30,60,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .title h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #0a2a44, #2563eb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .api-status {
+            background: #e6f7e6;
+            color: #2e7d32;
+            padding: 0.5rem 1.5rem;
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: #22c55e;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        .config-box {
+            background: white;
+            padding: 1.5rem 2rem;
+            border-radius: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .config-input {
+            flex: 2;
+            min-width: 300px;
+            padding: 1rem 1.5rem;
+            border: 2px solid #2563eb30;
+            border-radius: 60px;
+            font-size: 1rem;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        .config-input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px #2563eb20;
+        }
+
+        .primary-btn {
+            background: #0e2d4e;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 60px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+        }
+
+        .primary-btn:hover {
+            background: #1b3f64;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0,30,60,0.2);
+        }
+
+        .test-result {
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 1rem;
+            font-family: monospace;
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+            border-left: 6px solid #2563eb;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 1.8rem;
+            padding: 2rem;
+            box-shadow: 0 12px 30px rgba(0,30,60,0.08);
+        }
+
+        .panel h2 {
+            font-size: 1.5rem;
+            color: #0a2a44;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .badge {
+            background: #e6f0fa;
+            color: #1d4e7c;
+            font-size: 0.8rem;
+            padding: 0.2rem 0.8rem;
+            border-radius: 40px;
+            font-weight: 400;
+        }
+
+        .resume-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.8rem;
+            color: #2d5477;
+            font-weight: 500;
+        }
+
+        .editable-area {
+            background: #f8fbfe;
+            border: 2px dashed #94b8da;
+            border-radius: 1.2rem;
+            padding: 1.5rem;
+            min-height: 250px;
+            outline: none;
+            line-height: 1.7;
+            font-size: 0.95rem;
+            color: #1a334b;
+            white-space: pre-wrap;
+            margin-bottom: 1rem;
+            overflow-y: auto;
+        }
+
+        .editable-area:focus {
+            border-color: #2563eb;
+            background: white;
+        }
+
+        .optimized-box {
+            background: #f5fafd;
+            border-radius: 1.2rem;
+            padding: 1.5rem;
+            line-height: 1.8;
+            border-left: 6px solid #2563eb;
+            margin: 1rem 0;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+
+        .job-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 0.5rem;
+            background: #f5f9ff;
+            padding: 1rem;
+            border-radius: 1.2rem;
+            margin-bottom: 1.5rem;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #d5e5f2;
+        }
+
+        .job-tag {
+            background: white;
+            border: 1px solid #cde0ee;
+            padding: 0.6rem 0.3rem;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #1d4a74;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .job-tag:hover {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+            transform: translateY(-2px);
+        }
+
+        .job-tag.active {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+            font-weight: 500;
+        }
+
+        .custom-question {
+            display: flex;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .custom-question input {
+            flex: 1;
+            padding: 0.8rem 1.2rem;
+            border: 2px solid #cde0ee;
+            border-radius: 60px;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        .question-display {
+            background: #f0f7ff;
+            padding: 1.2rem;
+            border-radius: 1rem;
+            margin: 1rem 0;
+            font-weight: 500;
+            color: #0a2a44;
+            border-left: 6px solid #2563eb;
+            line-height: 1.6;
+        }
+
+        .answer-area {
+            background: white;
+            border: 1px solid #cde0ee;
+            border-radius: 1.2rem;
+            padding: 1.2rem;
+            margin: 1rem 0;
+        }
+
+        .answer-area textarea {
+            width: 100%;
+            border: none;
+            background: transparent;
+            resize: vertical;
+            min-height: 120px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #1d344a;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .feedback-box {
+            background: #f0f7fa;
+            border-radius: 1.2rem;
+            padding: 1.5rem;
+            border-left: 6px solid #059669;
+            margin-top: 1rem;
+            white-space: pre-wrap;
+            max-height: 350px;
+            overflow-y: auto;
+            line-height: 1.7;
+        }
+
+        .footer-note {
+            background: #dbeafe;
+            padding: 1rem 2rem;
+            border-radius: 60px;
+            color: #1e4b7a;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 0.95rem;
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 1000px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- 头部 -->
+        <div class="header">
+            <div class="title">
+                <h1>🚀 AI求职助手 · Cloudflare版</h1>
+            </div>
+            <div class="api-status">
+                <span class="status-dot"></span>
+                <span>后端服务已连接</span>
+            </div>
+        </div>
+
+        <!-- Worker地址配置 -->
+        <div class="config-box">
+            <span style="font-weight:600;">🌐 Worker地址：</span>
+            value="https://api.apheriai.com/api/ai-assistant"
+            <button class="primary-btn" id="testWorkerBtn">
+                <span>🔌</span> 测试连接
+            </button>
+        </div>
+        <div id="testResult" class="test-result">⚡ 请输入您的Worker地址并点击"测试连接"</div>
+
+        <!-- 主面板 -->
+        <div class="dashboard">
+            <!-- 左侧：简历优化 -->
+            <div class="panel">
+                <h2>
+                    📄 简历优化
+                    <span class="badge">AI智能改写</span>
+                </h2>
+                
+                <div class="resume-label">
+                    <span>🎯 目标岗位：</span>
+                </div>
+                <input type="text" id="jobTarget" class="config-input" style="margin-bottom:1.5rem;" placeholder="例如：财务总监 / 前端开发 / 产品经理" value="财务经理">
+
+                <div class="resume-label">
+                    <span>📝 原始简历（请在此输入您的简历）</span>
+                </div>
+                <div id="rawResume" class="editable-area" contenteditable="true"></div>
+
+                <div class="button-group">
+                    <button class="primary-btn" id="optimizeBtn">
+                        <span>✨</span> AI优化简历
+                    </button>
+                </div>
+
+                <div class="resume-label">
+                    <span>⭐ 优化结果</span>
+                    <span style="font-size:0.8rem; color:#2563eb;">✨ 星号是AI标注的重点</span>
+                </div>
+                <div id="optimizedResult" class="optimized-box">
+                    点击"AI优化简历"获取结果
+                </div>
+            </div>
+
+            <!-- 右侧：模拟面试 -->
+            <div class="panel">
+                <h2>
+                    🎤 模拟面试
+                    <span class="badge">50+热门职位</span>
+                </h2>
+                
+                <div class="resume-label">
+                    <span>💼 选择职位（可滚动）</span>
+                    <span style="font-size:0.8rem;">共50+职位</span>
+                </div>
+                
+                <!-- 50+职位网格 -->
+                <div class="job-grid" id="jobSelector">
+                    <!-- 财务/审计/金融类 -->
+                    <div class="job-tag active" data-job="财务经理">财务经理</div>
+                    <div class="job-tag" data-job="会计">会计</div>
+                    <div class="job-tag" data-job="审计专员">审计专员</div>
+                    <div class="job-tag" data-job="税务专员">税务专员</div>
+                    <div class="job-tag" data-job="成本会计">成本会计</div>
+                    <div class="job-tag" data-job="财务分析">财务分析</div>
+                    <div class="job-tag" data-job="融资专员">融资专员</div>
+                    <div class="job-tag" data-job="投资经理">投资经理</div>
+                    <div class="job-tag" data-job="风控专员">风控专员</div>
+                    <div class="job-tag" data-job="资产评估">资产评估</div>
+                    
+                    <!-- 技术开发类 -->
+                    <div class="job-tag" data-job="前端开发">前端开发</div>
+                    <div class="job-tag" data-job="后端开发">后端开发</div>
+                    <div class="job-tag" data-job="全栈开发">全栈开发</div>
+                    <div class="job-tag" data-job="移动开发">移动开发</div>
+                    <div class="job-tag" data-job="测试工程师">测试工程师</div>
+                    <div class="job-tag" data-job="运维工程师">运维工程师</div>
+                    <div class="job-tag" data-job="数据库工程师">数据库工程师</div>
+                    <div class="job-tag" data-job="网络安全">网络安全</div>
+                    <div class="job-tag" data-job="嵌入式开发">嵌入式开发</div>
+                    <div class="job-tag" data-job="算法工程师">算法工程师</div>
+                    <div class="job-tag" data-job="数据分析">数据分析</div>
+                    <div class="job-tag" data-job="数据开发">数据开发</div>
+                    <div class="job-tag" data-job="机器学习">机器学习</div>
+                    <div class="job-tag" data-job="AI工程师">AI工程师</div>
+                    <div class="job-tag" data-job="区块链开发">区块链开发</div>
+                    
+                    <!-- 产品/运营/设计 -->
+                    <div class="job-tag" data-job="产品经理">产品经理</div>
+                    <div class="job-tag" data-job="产品助理">产品助理</div>
+                    <div class="job-tag" data-job="运营经理">运营经理</div>
+                    <div class="job-tag" data-job="用户运营">用户运营</div>
+                    <div class="job-tag" data-job="内容运营">内容运营</div>
+                    <div class="job-tag" data-job="活动运营">活动运营</div>
+                    <div class="job-tag" data-job="UI设计师">UI设计师</div>
+                    <div class="job-tag" data-job="交互设计">交互设计</div>
+                    <div class="job-tag" data-job="视觉设计">视觉设计</div>
+                    <div class="job-tag" data-job="UX研究员">UX研究员</div>
+                    
+                    <!-- 市场/销售/商务 -->
+                    <div class="job-tag" data-job="销售经理">销售经理</div>
+                    <div class="job-tag" data-job="客户经理">客户经理</div>
+                    <div class="job-tag" data-job="商务专员">商务专员</div>
+                    <div class="job-tag" data-job="市场专员">市场专员</div>
+                    <div class="job-tag" data-job="品牌经理">品牌经理</div>
+                    <div class="job-tag" data-job="公关专员">公关专员</div>
+                    
+                    <!-- 人力/行政/法务 -->
+                    <div class="job-tag" data-job="人力资源">人力资源</div>
+                    <div class="job-tag" data-job="招聘专员">招聘专员</div>
+                    <div class="job-tag" data-job="培训专员">培训专员</div>
+                    <div class="job-tag" data-job="薪酬绩效">薪酬绩效</div>
+                    <div class="job-tag" data-job="行政专员">行政专员</div>
+                    <div class="job-tag" data-job="法务专员">法务专员</div>
+                    <div class="job-tag" data-job="合规专员">合规专员</div>
+                    
+                    <!-- 项目管理/其他 -->
+                    <div class="job-tag" data-job="项目经理">项目经理</div>
+                    <div class="job-tag" data-job="项目助理">项目助理</div>
+                    <div class="job-tag" data-job="采购专员">采购专员</div>
+                    <div class="job-tag" data-job="供应链专员">供应链专员</div>
+                    <div class="job-tag" data-job="物流专员">物流专员</div>
+                </div>
+
+                <!-- 自定义问题输入 -->
+                <div class="custom-question">
+                    <input type="text" id="customQuestion" placeholder="或者输入您想被问的问题...">
+                    <button class="primary-btn" id="useCustomBtn" style="padding:0.8rem 1.5rem;">使用</button>
+                </div>
+
+                <!-- 当前问题显示 -->
+                <div class="resume-label">
+                    <span>❓ 当前面试问题</span>
+                </div>
+                <div id="questionDisplay" class="question-display">
+                    请分享一次您成功处理复杂财务项目的经历。
+                </div>
+
+                <!-- 回答输入 -->
+                <div class="resume-label">
+                    <span>✍️ 您的回答</span>
+                </div>
+                <div class="answer-area">
+                    <textarea id="answerInput" placeholder="在这里输入您的回答..."></textarea>
+                </div>
+
+                <div class="button-group">
+                    <button class="primary-btn" id="interviewBtn">
+                        <span>🎯</span> 获取面试反馈
+                    </button>
+                </div>
+
+                <!-- 面试反馈 -->
+                <div class="resume-label">
+                    <span>📋 面试官反馈</span>
+                    <span style="font-size:0.8rem; color:#2563eb;">✨ 星号是AI标注的重点</span>
+                </div>
+                <div id="interviewResult" class="feedback-box">
+                    点击"获取面试反馈"获取AI点评
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部提示 -->
+        <div class="footer-note">
+            <span>📌</span>
+            <span><strong>使用提示：</strong> 1. 先输入Worker地址并测试连接 2. 左侧输入简历和目标岗位 3. 右侧选择职位或自定义问题 4. 星号(*)是AI标注的重点，可手动调整</span>
+        </div>
+    </div>
+
+    <script>
+        (function() {
+            // ========== DOM元素 ==========
+            const workerUrlInput = document.getElementById('workerUrl');
+            const testWorkerBtn = document.getElementById('testWorkerBtn');
+            const testResult = document.getElementById('testResult');
+            const optimizeBtn = document.getElementById('optimizeBtn');
+            const interviewBtn = document.getElementById('interviewBtn');
+            const useCustomBtn = document.getElementById('useCustomBtn');
+            const rawResume = document.getElementById('rawResume');
+            const jobTarget = document.getElementById('jobTarget');
+            const optimizedResult = document.getElementById('optimizedResult');
+            const answerInput = document.getElementById('answerInput');
+            const interviewResult = document.getElementById('interviewResult');
+            const questionDisplay = document.getElementById('questionDisplay');
+            const customQuestion = document.getElementById('customQuestion');
+            const jobTags = document.querySelectorAll('.job-tag');
+
+            // ========== 问题库 ==========
+            const questionBank = {
+                '财务经理': '请分享一次您成功处理复杂财务项目的经历，以及您如何确保财务合规性。',
+                '会计': '请谈谈您如何处理月末结账工作，以及遇到账务差异时的解决流程。',
+                '前端开发': '请解释React中useState和useEffect的区别，并举例说明实际应用场景。',
+                '产品经理': '如何确定产品需求的优先级？请结合具体案例说明您的决策过程。',
+                '数据分析': '请描述一次您通过数据分析发现业务洞察并推动决策的案例。',
+                // ... 其他职位问题同之前
+            };
+
+            // ========== 当前选中的职位 ==========
+            let currentJob = '财务经理';
+
+            // ========== 职位点击事件 ==========
+            jobTags.forEach(tag => {
+                tag.addEventListener('click', () => {
+                    jobTags.forEach(t => t.classList.remove('active'));
+                    tag.classList.add('active');
+                    currentJob = tag.dataset.job;
+                    
+                    if (questionBank[currentJob]) {
+                        questionDisplay.innerText = questionBank[currentJob];
+                    } else {
+                        questionDisplay.innerText = `请分享一个关于${currentJob}岗位的专业问题或工作经历。`;
+                    }
+                    
+                    customQuestion.value = '';
+                });
+            });
+
+            // ========== 使用自定义问题 ==========
+            useCustomBtn.addEventListener('click', () => {
+                const customQ = customQuestion.value.trim();
+                if (customQ) {
+                    questionDisplay.innerText = customQ;
+                    jobTags.forEach(t => t.classList.remove('active'));
+                } else {
+                    alert('请输入您想被问的问题');
+                }
+            });
+
+            // ========== 测试Worker连接 ==========
+            testWorkerBtn.addEventListener('click', async () => {
+                const workerUrl = workerUrlInput.value.trim();
+                
+                if (!workerUrl) {
+                    testResult.innerHTML = '<span style="color:#c62828;">❌ 请输入Worker地址</span>';
+                    return;
+                }
+
+                testResult.innerHTML = '⏳ 正在测试连接...';
+
+                try {
+                    const response = await fetch(workerUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'test',
+                            data: { test: true }
+                        })
+                    });
+
+                    if (response.ok) {
+                        testResult.innerHTML = '<span style="color:#2e7d32;">✅ Worker连接成功！</span>';
+                    } else {
+                        testResult.innerHTML = `<span style="color:#c62828;">❌ 连接失败，HTTP ${response.status}</span>`;
+                    }
+                } catch (error) {
+                    testResult.innerHTML = `<span style="color:#c62828;">❌ 连接失败：${error.message}</span>`;
+                }
+            });
+
+            // ========== 调用Worker API ==========
+            async function callWorkerAPI(action, data) {
+                const workerUrl = workerUrlInput.value.trim();
+                
+                if (!workerUrl) {
+                    throw new Error('请先输入Worker地址');
+                }
+
+                const response = await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action, data })
+                });
+
+                const result = await response.json();
+
+                if (!result.success) {
+                    throw new Error(result.error || '未知错误');
+                }
+
+                return result.result;
+            }
+
+            // ========== 简历优化 ==========
+            optimizeBtn.addEventListener('click', async () => {
+                const resume = rawResume.innerText || rawResume.textContent;
+                const job = jobTarget.value.trim() || '未指定岗位';
+
+                if (!resume) {
+                    optimizedResult.innerText = '❌ 请输入您的简历内容';
+                    return;
+                }
+
+                optimizedResult.innerText = '⏳ AI正在优化中...';
+
+                try {
+                    const result = await callWorkerAPI('optimize-resume', {
+                        resume: resume,
+                        jobTarget: job
+                    });
+                    
+                    optimizedResult.innerText = result;
+                } catch (error) {
+                    optimizedResult.innerText = `❌ 优化失败：${error.message}`;
+                }
+            });
+
+            // ========== 获取面试反馈 ==========
+            interviewBtn.addEventListener('click', async () => {
+                const question = questionDisplay.innerText;
+                const answer = answerInput.value.trim();
+                const job = currentJob;
+
+                if (!answer) {
+                    interviewResult.innerText = '❌ 请输入您的回答';
+                    return;
+                }
+
+                interviewResult.innerText = '⏳ AI正在分析您的回答...';
+
+                try {
+                    const result = await callWorkerAPI('interview-feedback', {
+                        question: question,
+                        answer: answer,
+                        job: job
+                    });
+                    
+                    interviewResult.innerText = result;
+                } catch (error) {
+                    interviewResult.innerText = `❌ 获取反馈失败：${error.message}`;
+                }
+            });
+
+            // ========== 初始化 ==========
+            questionDisplay.innerText = questionBank['财务经理'] || '请分享一次您成功处理复杂财务项目的经历。';
+        })();
+    </script>
+</body>
+</html>
