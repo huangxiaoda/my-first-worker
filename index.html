@@ -334,14 +334,16 @@
             </div>
         </div>
 
-        <!-- Worker地址配置 -->
-        <div class="config-box">
-            <span style="font-weight:600;">🌐 Worker地址：</span>
-            value="https://api.apheriai.com/api/ai-assistant"
-            <button class="primary-btn" id="testWorkerBtn">
-                <span>🔌</span> 测试连接
-            </button>
-        </div>
+            <!-- Worker地址配置 -->
+            <div class="config-box">
+        <span style="font-weight:600;">🌐 Worker地址：</span>
+        <input type="text" id="workerUrl" class="config-input" 
+               value="https://api.apheriai.com/api/ai-assistant" 
+               placeholder="https://your-worker.workers.dev">
+        <button class="primary-btn" id="testWorkerBtn">
+            <span>🔌</span> 测试连接
+        </button>
+    </div>
         <div id="testResult" class="test-result">⚡ 请输入您的Worker地址并点击"测试连接"</div>
 
         <!-- 主面板 -->
