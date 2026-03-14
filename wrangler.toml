@@ -6,4 +6,4 @@ compatibility_date = "2026-03-10"
 # 这里可以放环境变量，比如数据库连接信息等，现在先空着
 
 # 如果你想把 Worker 绑定到你自己的域名，取消下面这行的注释
- routes = [{ pattern = "apheriai.com/*", zone_id = "你的域名Zone ID" }]
+ routes = [{ pattern = "apheriai.com/*", zone_id = "fe5cb503ce9396b3b13dd7f7442cf133" }]
