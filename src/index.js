@@ -1,3 +1,16 @@
+// 用户套餐限额定义（每月）
+const PLAN_LIMITS = {
+  'free': 90,     // 每日3次 ≈ 每月90次
+  'monthly': 100,
+  'quarterly': 100,
+  'yearly': 100
+};
+
+// KV 键前缀
+const KV_KEYS = {
+  USER_PLAN: 'user:plan:',        // 用户套餐类型
+  USER_USAGE: 'user:usage:'       // 当月已用次数（按月）
+};
 
 const DEEPSEEK_API_ENDPOINT = "https://api.deepseek.com/chat/completions";
 
@@ -51,6 +64,54 @@ async function checkRateLimit(ip, env, origin) {
   return true;
 }
 
+
+// 获取当前月份字符串（用于按月统计）
+function getCurrentMonth() {
+  const d = new Date();
+  return `${d.getFullYear()}-${d.getMonth() + 1}`;
+}
+
+// 检查用户额度（核心函数）
+async function checkUserQuota(userId, env, origin) {
+  if (!env.KV_NAMESPACE) return { allowed: true, remaining: 999 }; // 无KV则跳过
+
+  const month = getCurrentMonth();
+  const planKey = KV_KEYS.USER_PLAN + userId;
+  const usageKey = KV_KEYS.USER_USAGE + userId + ':' + month;
+
+  // 获取用户套餐类型，默认为免费
+  let plan = await env.KV_NAMESPACE.get(planKey) || 'free';
+  // 获取当月已用次数
+  let used = parseInt(await env.KV_NAMESPACE.get(usageKey) || '0');
+
+  const limit = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
+  const remaining = limit - used;
+
+  if (remaining <= 0) {
+    return { allowed: false, reason: '当月次数已用完，请升级套餐或下月再来' };
+  }
+
+  // 返回允许，并带上剩余次数（方便前端展示）
+  return { allowed: true, remaining, plan, used, limit };
+}
+
+// 增加用户使用次数（在调用AI成功后调用）
+async function incrementUserUsage(userId, env) {
+  if (!env.KV_NAMESPACE) return;
+  const month = getCurrentMonth();
+  const usageKey = KV_KEYS.USER_USAGE + userId + ':' + month;
+  const current = parseInt(await env.KV_NAMESPACE.get(usageKey) || '0');
+  await env.KV_NAMESPACE.put(usageKey, (current + 1).toString(), { expirationTtl: 35 * 24 * 3600 }); // 保留35天
+}
+
+// 更新用户套餐（支付成功后调用）
+async function updateUserPlan(userId, planType, env) {
+  if (!env.KV_NAMESPACE) return;
+  const planKey = KV_KEYS.USER_PLAN + userId;
+  await env.KV_NAMESPACE.put(planKey, planType);
+}
+
+
 // 处理 DeepSeek API 调用的函数
 async function handleAIAssistant(request, env, ctx) {
   const origin = request.headers.get('Origin') || '';
@@ -96,6 +157,25 @@ async function handleAIAssistant(request, env, ctx) {
       return errorResponse('缺少 question/answer/job', 400, origin);
     }
 
+    
+// 用户额度检查（非 test 请求）
+if (action !== 'test') {
+  const userId = data?.userId; // 前端必须传 userId
+  if (!userId) {
+    return errorResponse('缺少用户标识 userId', 400, origin);
+  }
+
+  const quotaCheck = await checkUserQuota(userId, env, origin);
+  if (!quotaCheck.allowed) {
+    return errorResponse(quotaCheck.reason, 403, origin);
+  }
+
+  // 将剩余次数存入 request 上下文，以便返回给前端（可选）
+  // 可以暂存到 env 或直接后续使用
+  request.quotaRemaining = quotaCheck.remaining;
+}
+    
+    
     // 构建系统提示词
     let systemPrompt = '';
     let userPrompt = '';
@@ -157,6 +237,14 @@ async function handleAIAssistant(request, env, ctx) {
       await env.KV_NAMESPACE.put(logKey, (parseInt(currentLog) + 1).toString());
     }
 
+   // 在返回成功之前，增加用户使用次数（忽略错误，不影响AI结果返回）
+if (action !== 'test' && data?.userId) {
+    incrementUserUsage(data.userId, env).catch(e => 
+        console.error('增量记录失败:', e)
+    );
+}
+
+   
     return successResponse(aiMessage, origin);
   } catch (error) {
     console.error('Worker 内部错误:', error);
