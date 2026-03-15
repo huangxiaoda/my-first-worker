@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI求职助手 · 完整版</title>
     <style>
-           
-         /* ========== 全局样式 ========== */
+        /* ========== 全局样式 ========== */
         * {
             margin: 0;
             padding: 0;
@@ -378,21 +377,19 @@
         #purchaseModal button:last-child:hover {
             background: #bbb;
         }
-
     </style>
 </head>
 <body>
-   <div class="container">
+    <div class="container">
         <!-- 头部 -->
         <div class="header">
-            <div class="title"><h1>🚀 AI求职助手</h1></div>
-            <div class="api-status"><span class="status-dot"></span><span>后端服务已连接</span></div> #purchaseModal { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 20px; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); z-index: 1000; width: 300px; }
-        #purchaseModal h3 { margin-bottom: 15px; color: #0a2a44; }
-        #purchaseModal button { display: block; width: 100%; margin: 8px 0; padding: 10px; background: #2563eb; color: white; border: none; border-radius: 40px; cursor: pointer; }
-        #purchaseModal button:hover { background: #1d4ed8; }
-        #purchaseModal button:last-child { background: #ccc; color: #333; }
-        #purchaseModal button:last-child:hover { background: #bbb; }
-
+            <div class="title">
+                <h1>🚀 AI求职助手</h1>
+            </div>
+            <div class="api-status">
+                <span class="status-dot"></span>
+                <span>后端服务已连接</span>
+            </div>
         </div>
 
         <!-- 用户信息与购买按钮 -->
@@ -418,33 +415,56 @@
                    value="https://api.apheriai.com/api/ai-assistant"
                    readonly
                    style="background-color:#f5f5f5; color:#666; cursor:not-allowed;">
-            <button class="primary-btn" id="testWorkerBtn"><span>🔌</span> 测试连接</button>
+            <button class="primary-btn" id="testWorkerBtn">
+                <span>🔌</span> 测试连接
+            </button>
         </div>
         <div id="testResult" class="test-result">⚡ 请点击测试连接</div>
 
-        <!-- 主面板（简历优化 + 模拟面试） -->
+        <!-- 主面板 -->
         <div class="dashboard">
-            <!-- 左侧简历优化 -->
+            <!-- 左侧：简历优化 -->
             <div class="panel">
-                <h2>📄 简历优化 <span class="badge">AI智能改写</span></h2>
-                <div class="resume-label"><span>🎯 目标岗位：</span></div>
+                <h2>
+                    📄 简历优化
+                    <span class="badge">AI智能改写</span>
+                </h2>
+                <div class="resume-label">
+                    <span>🎯 目标岗位：</span>
+                </div>
                 <input type="text" id="jobTarget" class="config-input" style="margin-bottom:1.5rem;" placeholder="例如：财务总监 / 前端开发 / 产品经理" value="财务经理">
 
-                <div class="resume-label"><span>📝 原始简历（请在此输入您的简历）</span></div>
+                <div class="resume-label">
+                    <span>📝 原始简历（请在此输入您的简历）</span>
+                </div>
                 <div id="rawResume" class="editable-area" contenteditable="true"></div>
 
                 <div class="button-group">
-                    <button class="primary-btn" id="optimizeBtn"><span>✨</span> AI优化简历</button>
+                    <button class="primary-btn" id="optimizeBtn">
+                        <span>✨</span> AI优化简历
+                    </button>
                 </div>
 
-                <div class="resume-label"><span>⭐ 优化结果</span><span style="font-size:0.8rem; color:#2563eb;">✨ 星号是AI标注的重点</span></div>
-                <div id="optimizedResult" class="optimized-box">点击"AI优化简历"获取结果</div>
+                <div class="resume-label">
+                    <span>⭐ 优化结果</span>
+                    <span style="font-size:0.8rem; color:#2563eb;">✨ 星号是AI标注的重点</span>
+                </div>
+                <div id="optimizedResult" class="optimized-box">
+                    点击"AI优化简历"获取结果
+                </div>
             </div>
 
-            <!-- 右侧模拟面试 -->
+            <!-- 右侧：模拟面试 -->
             <div class="panel">
-                <h2>🎤 模拟面试 <span class="badge">50+热门职位</span></h2>
-                <div class="resume-label"><span>💼 选择职位（可滚动）</span><span style="font-size:0.8rem;">共50+职位</span></div>
+                <h2>
+                    🎤 模拟面试
+                    <span class="badge">50+热门职位</span>
+                </h2>
+                <div class="resume-label">
+                    <span>💼 选择职位（可滚动）</span>
+                    <span style="font-size:0.8rem;">共50+职位</span>
+                </div>
+                <!-- 50+职位网格 -->
                 <div class="job-grid" id="jobSelector">
                     <!-- 财务/审计/金融类 -->
                     <div class="job-tag active" data-job="财务经理">财务经理</div>
@@ -514,22 +534,35 @@
                 </div>
 
                 <!-- 当前问题显示 -->
-                <div class="resume-label"><span>❓ 当前面试问题</span></div>
-                <div id="questionDisplay" class="question-display">请分享一次您成功处理复杂财务项目的经历。</div>
+                <div class="resume-label">
+                    <span>❓ 当前面试问题</span>
+                </div>
+                <div id="questionDisplay" class="question-display">
+                    请分享一次您成功处理复杂财务项目的经历。
+                </div>
 
                 <!-- 回答输入 -->
-                <div class="resume-label"><span>✍️ 您的回答</span></div>
+                <div class="resume-label">
+                    <span>✍️ 您的回答</span>
+                </div>
                 <div class="answer-area">
                     <textarea id="answerInput" placeholder="在这里输入您的回答..."></textarea>
                 </div>
 
                 <div class="button-group">
-                    <button class="primary-btn" id="interviewBtn"><span>🎯</span> 获取面试反馈</button>
+                    <button class="primary-btn" id="interviewBtn">
+                        <span>🎯</span> 获取面试反馈
+                    </button>
                 </div>
 
                 <!-- 面试反馈 -->
-                <div class="resume-label"><span>📋 面试官反馈</span><span style="font-size:0.8rem; color:#2563eb;">✨ 星号是AI标注的重点</span></div>
-                <div id="interviewResult" class="feedback-box">点击"获取面试反馈"获取AI点评</div>
+                <div class="resume-label">
+                    <span>📋 面试官反馈</span>
+                    <span style="font-size:0.8rem; color:#2563eb;">✨ 星号是AI标注的重点</span>
+                </div>
+                <div id="interviewResult" class="feedback-box">
+                    点击"获取面试反馈"获取AI点评
+                </div>
             </div>
         </div>
 
@@ -541,12 +574,7 @@
     </div>
 
     <script>
-        // ========== 全局函数（确保 onclick 可以调用）==========
-        window.showPurchaseModal = function() {
-            document.getElementById('purchaseModal').style.display = 'block';
-        };
-
-        // 获取或生成设备唯一ID（也暴露到全局以便 purchase 使用）
+        // 获取或生成设备唯一ID
         function getUserId() {
             let userId = localStorage.getItem('userId');
             if (!userId) {
@@ -555,88 +583,13 @@
             }
             return userId;
         }
-        window.USER_ID = getUserId();  // 挂载到 window，方便 purchase 使用
+        const USER_ID = getUserId();
 
-        // 定义 purchase 函数（必须挂载到 window）
-        window.purchase = async function(plan) {
-            const productMap = {
-                monthly: 'com.yourapp.monthly_sub',
-                quarterly: 'com.yourapp.quarterly_sub',
-                yearly: 'com.yourapp.yearly_sub',
-                token30: 'com.yourapp.token30'
-            };
-            const productId = productMap[plan];
-            if (!productId) return;
-
-            const WORKER_URL = document.getElementById('workerUrl').value; // 从输入框获取
-
-            // 判断是否在 HBuilderX 环境（支持 uni）
-            if (typeof uni !== 'undefined' && uni.requestVirtualPayment) {
-                // 真实内购环境
-                uni.requestVirtualPayment({
-                    provider: 'appleiap',
-                    orderInfo: {
-                        productId: productId,
-                        quantity: 1,
-                        type: plan === 'token30' ? 'consumable' : 'auto-renewable-subscription',
-                        appAccountToken: window.USER_ID
-                    },
-                    success: (res) => {
-                        fetch(WORKER_URL.replace('/api/ai-assistant', '/api/upgrade-plan'), {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                userId: window.USER_ID,
-                                planType: plan,
-                                receipt: res.transactionReceipt
-                            })
-                        })
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data.success) {
-                                uni.showToast({ title: '购买成功' });
-                                document.getElementById('purchaseModal').style.display = 'none';
-                                // 刷新剩余次数
-                                if (typeof fetchRemaining === 'function') fetchRemaining();
-                            } else {
-                                uni.showToast({ title: '升级失败: ' + (data.error || '未知错误'), icon: 'none' });
-                            }
-                        })
-                        .catch(() => uni.showToast({ title: '网络错误', icon: 'none' }));
-                    },
-                    fail: (err) => {
-                        uni.showToast({ title: '支付失败', icon: 'none' });
-                    }
-                });
-            } else {
-                // 模拟环境（网页测试）
-                try {
-                    const response = await fetch(WORKER_URL.replace('/api/ai-assistant', '/api/upgrade-plan'), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userId: window.USER_ID,
-                            planType: plan,
-                            receipt: 'mock_receipt'
-                        })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        alert('模拟购买成功！');
-                        document.getElementById('purchaseModal').style.display = 'none';
-                        if (typeof fetchRemaining === 'function') fetchRemaining();
-                    } else {
-                        alert('升级失败：' + (result.error || '未知错误'));
-                    }
-                } catch (e) {
-                    alert('网络错误：' + e.message);
-                }
-            }
+        window.showPurchaseModal = function() {
+            document.getElementById('purchaseModal').style.display = 'block';
         };
 
-        // ========== DOM 加载完成后执行 ==========
-        document.addEventListener('DOMContentLoaded', function() {
-            // 获取所有需要用到的元素
+        (function() {
             const workerUrlInput = document.getElementById('workerUrl');
             const testWorkerBtn = document.getElementById('testWorkerBtn');
             const testResult = document.getElementById('testResult');
@@ -651,11 +604,10 @@
             const questionDisplay = document.getElementById('questionDisplay');
             const customQuestion = document.getElementById('customQuestion');
             const jobTags = document.querySelectorAll('.job-tag');
-            const remainingSpan = document.getElementById('remainingCount');
 
             const WORKER_URL = workerUrlInput.value;
 
-            // 问题库（可扩展）
+            // 问题库（可根据需要补充）
             const questionBank = {
                 '财务经理': '请分享一次您成功处理复杂财务项目的经历，以及您如何确保财务合规性。',
                 '会计': '请谈谈您如何处理月末结账工作，以及遇到账务差异时的解决流程。',
@@ -666,7 +618,7 @@
 
             let currentJob = '财务经理';
 
-            // 职位点击事件
+            // 职位点击
             jobTags.forEach(tag => {
                 tag.addEventListener('click', () => {
                     jobTags.forEach(t => t.classList.remove('active'));
@@ -677,7 +629,7 @@
                 });
             });
 
-            // 使用自定义问题
+            // 自定义问题
             useCustomBtn.addEventListener('click', () => {
                 const customQ = customQuestion.value.trim();
                 if (customQ) {
@@ -688,45 +640,16 @@
                 }
             });
 
-            // 通用 API 调用函数
-            async function callWorkerAPI(action, data) {
-                const payload = { action, data: { ...data, userId: window.USER_ID } };
-                const response = await fetch(WORKER_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                const result = await response.json();
-                if (!result.success) throw new Error(result.error);
-                if (result.remaining !== undefined) updateRemainingDisplay(result.remaining);
-                return result.result;
-            }
-
-            function updateRemainingDisplay(remaining) {
-                if (remainingSpan) remainingSpan.innerText = `剩余次数：${remaining}`;
-            }
-
-            window.fetchRemaining = async function() {
-                try {
-                    await callWorkerAPI('test', {});
-                } catch (e) {
-                    console.error('获取剩余次数失败', e);
-                }
-            };
-
             // 测试连接
             testWorkerBtn.addEventListener('click', async () => {
-                const url = workerUrlInput.value.trim();
-                if (!url) {
-                    testResult.innerHTML = '<span style="color:#c62828;">❌ 请输入Worker地址</span>';
-                    return;
-                }
+                const workerUrl = workerUrlInput.value.trim();
+                if (!workerUrl) return testResult.innerHTML = '<span style="color:#c62828;">❌ 请输入Worker地址</span>';
                 testResult.innerHTML = '⏳ 正在测试连接...';
                 try {
-                    const response = await fetch(url, {
+                    const response = await fetch(workerUrl, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'test', data: { userId: window.USER_ID } })
+                        body: JSON.stringify({ action: 'test', data: { userId: USER_ID } })
                     });
                     if (response.ok) {
                         const result = await response.json();
@@ -740,14 +663,37 @@
                 }
             });
 
+            // 通用 API 调用
+            async function callWorkerAPI(action, data) {
+                const payload = { action, data: { ...data, userId: USER_ID } };
+                const response = await fetch(WORKER_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await response.json();
+                if (!result.success) throw new Error(result.error);
+                if (result.remaining !== undefined) updateRemainingDisplay(result.remaining);
+                return result.result;
+            }
+
+            function updateRemainingDisplay(remaining) {
+                document.getElementById('remainingCount').innerText = `剩余次数：${remaining}`;
+            }
+
+            async function fetchRemaining() {
+                try {
+                    await callWorkerAPI('test', {});
+                } catch (e) {
+                    console.error('获取剩余次数失败', e);
+                }
+            }
+
             // 简历优化
             optimizeBtn.addEventListener('click', async () => {
                 const resume = rawResume.innerText || rawResume.textContent;
                 const job = jobTarget.value.trim() || '未指定岗位';
-                if (!resume) {
-                    optimizedResult.innerText = '❌ 请输入您的简历内容';
-                    return;
-                }
+                if (!resume) return optimizedResult.innerText = '❌ 请输入您的简历内容';
                 optimizedResult.innerText = '⏳ AI正在优化中...';
                 try {
                     const result = await callWorkerAPI('optimize-resume', { resume, jobTarget: job });
@@ -762,10 +708,7 @@
                 const question = questionDisplay.innerText;
                 const answer = answerInput.value.trim();
                 const job = currentJob;
-                if (!answer) {
-                    interviewResult.innerText = '❌ 请输入您的回答';
-                    return;
-                }
+                if (!answer) return interviewResult.innerText = '❌ 请输入您的回答';
                 interviewResult.innerText = '⏳ AI正在分析您的回答...';
                 try {
                     const result = await callWorkerAPI('interview-feedback', { question, answer, job });
@@ -775,13 +718,76 @@
                 }
             });
 
+            // 购买函数
+            window.purchase = async function(plan) {
+                const productMap = {
+                    monthly: 'com.yourapp.monthly_sub',
+                    quarterly: 'com.yourapp.quarterly_sub',
+                    yearly: 'com.yourapp.yearly_sub',
+                    token30: 'com.yourapp.token30'
+                };
+                const productId = productMap[plan];
+                if (!productId) return;
+
+                // 真实环境（HBuilderX + 苹果内购）
+                if (typeof uni !== 'undefined' && uni.requestVirtualPayment) {
+                    uni.requestVirtualPayment({
+                        provider: 'appleiap',
+                        orderInfo: {
+                            productId: productId,
+                            quantity: 1,
+                            type: plan === 'token30' ? 'consumable' : 'auto-renewable-subscription',
+                            appAccountToken: USER_ID
+                        },
+                        success: (res) => {
+                            // 支付成功，通知后端升级
+                            fetch(WORKER_URL.replace('/api/ai-assistant', '/api/upgrade-plan'), {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userId: USER_ID, planType: plan, receipt: res.transactionReceipt })
+                            })
+                            .then(res => res.json())
+                            .then(data => {
+                                if (data.success) {
+                                    uni.showToast({ title: '购买成功' });
+                                    document.getElementById('purchaseModal').style.display = 'none';
+                                    fetchRemaining();
+                                } else {
+                                    uni.showToast({ title: '升级失败: ' + (data.error || '未知错误'), icon: 'none' });
+                                }
+                            })
+                            .catch(() => uni.showToast({ title: '网络错误', icon: 'none' }));
+                        },
+                        fail: (err) => {
+                            uni.showToast({ title: '支付失败', icon: 'none' });
+                        }
+                    });
+                } else {
+                    // 模拟环境（网页测试）
+                    try {
+                        const response = await fetch(WORKER_URL.replace('/api/ai-assistant', '/api/upgrade-plan'), {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: USER_ID, planType: plan, receipt: 'mock_receipt' })
+                        });
+                        const result = await response.json();
+                        if (result.success) {
+                            alert('模拟购买成功！');
+                            document.getElementById('purchaseModal').style.display = 'none';
+                            fetchRemaining();
+                        } else {
+                            alert('升级失败：' + (result.error || '未知错误'));
+                        }
+                    } catch (e) {
+                        alert('网络错误：' + e.message);
+                    }
+                }
+            };
+
             // 初始化
             questionDisplay.innerText = questionBank['财务经理'] || '请分享一次您成功处理复杂财务项目的经历。';
             fetchRemaining();
-        });
+        })();
     </script>
 </body>
 </html>
-
-
-
