@@ -334,7 +334,26 @@
             </div>
         </div>
 
-          <!-- Worker地址配置（只读模式） -->
+        //购买按钮和剩余次数
+        <div class="user-info" style="position:absolute; top:20px; right:20px; background:white; padding:8px 15px; border-radius:40px; box-shadow:0 2px 10px rgba(0,0,0,0.1);">
+  <span id="remainingCount">剩余次数：--</span>
+  <button class="small-btn" onclick="showPurchaseModal()">购买套餐</button>
+</div>
+
+        //购买弹窗
+        <div id="purchaseModal" style="display:none; position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); background:white; padding:20px; border-radius:20px; box-shadow:0 10px 40px rgba(0,0,0,0.2); z-index:1000; width:300px;">
+  <h3>选择套餐</h3>
+  <div>
+    <button onclick="purchase('monthly')">月度会员 ¥29.9/月 (100次)</button>
+    <button onclick="purchase('quarterly')">季度会员 ¥79.9/季</button>
+    <button onclick="purchase('yearly')">年度会员 ¥299/年</button>
+    <button onclick="purchase('token30')">30次次数包 ¥9.9</button>
+  </div>
+  <button onclick="document.getElementById('purchaseModal').style.display='none'">关闭</button>
+</div>
+
+        
+        <!-- Worker地址配置（只读模式） -->
 <div class="config-box">
     <span style="font-weight:600;">🌐 Worker地址：</span>
     <input type="text" id="workerUrl" class="config-input" 
@@ -509,6 +528,19 @@
     </div>
 
     <script>
+       
+        // 获取或生成设备唯一ID（存储在 localStorage）
+        function getUserId() {
+          let userId = localStorage.getItem('userId');
+          if (!userId) {
+            userId = 'user_' + Math.random().toString(36).substr(2, 9) + Date.now();
+            localStorage.setItem('userId', userId);
+          }
+          return userId;
+        }
+        const USER_ID = getUserId();
+        
+     
         (function() {
             // ========== DOM元素 ==========
             const workerUrlInput = document.getElementById('workerUrl');
@@ -599,28 +631,88 @@
             });
 
             // ========== 调用Worker API ==========
-            async function callWorkerAPI(action, data) {
-                const workerUrl = workerUrlInput.value.trim();
-                
-                if (!workerUrl) {
-                    throw new Error('请先输入Worker地址');
-                }
+          async function callWorkerAPI(action, data) {
+  const payload = {
+    action,
+    data: {
+      ...data,
+      userId: USER_ID   // 自动附加用户ID
+    }
+  };
+  const response = await fetch(WORKER_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  const result = await response.json();
+  if (!result.success) throw new Error(result.error);
+  // 如果返回了剩余次数，可以更新界面显示（可选）
+  if (result.remaining !== undefined) {
+    updateRemainingDisplay(result.remaining);
+  }
+  return result.result;
+}
 
-                const response = await fetch(workerUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ action, data })
-                });
+            //内购调用函数
+            function purchase(plan) {
+  const productMap = {
+    monthly: 'com.yourapp.monthly_sub',
+    quarterly: 'com.yourapp.quarterly_sub',
+    yearly: 'com.yourapp.yearly_sub',
+    token30: 'com.yourapp.token30'
+  };
+  const productId = productMap[plan];
+  if (!productId) return;
 
-                const result = await response.json();
+  uni.requestVirtualPayment({
+    provider: 'appleiap',  // 或根据平台动态选择
+    orderInfo: {
+      productId: productId,
+      quantity: 1,
+      type: plan === 'token30' ? 'consumable' : 'auto-renewable-subscription',
+      appAccountToken: USER_ID  // 苹果推荐用 UUID 关联用户
+    },
+    success: (res) => {
+      // 支付成功，通知后端更新套餐
+      fetch(WORKER_URL.replace('/api/ai-assistant', '/api/upgrade-plan'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: USER_ID,
+          planType: plan,
+          receipt: res.transactionReceipt // 苹果收据
+        })
+      }).then(() => {
+        uni.showToast({ title: '购买成功' });
+        document.getElementById('purchaseModal').style.display = 'none';
+        // 刷新剩余次数
+        fetchRemaining();
+      });
+    },
+    fail: (err) => {
+      uni.showToast({ title: '支付失败', icon: 'none' });
+    }
+  });
+}
 
-                if (!result.success) {
-                    throw new Error(result.error || '未知错误');
-                }
+// 显示购买弹窗
+function showPurchaseModal() {
+  document.getElementById('purchaseModal').style.display = 'block';
+}
 
-                return result.result;
-            }
+// 获取剩余次数（可单独调用）
+async function fetchRemaining() {
+  try {
+    const res = await callWorkerAPI('test', {}); // 利用 test 接口返回剩余次数
+    if (res.remaining !== undefined) updateRemainingDisplay(res.remaining);
+  } catch (e) {}
+}
 
+            //更新剩余次数显示
+            function updateRemainingDisplay(remaining) {
+  document.getElementById('remainingCount').innerText = `剩余次数：${remaining}`;
+}
+            
             // ========== 简历优化 ==========
             optimizeBtn.addEventListener('click', async () => {
                 const resume = rawResume.innerText || rawResume.textContent;
@@ -674,6 +766,7 @@
             // ========== 初始化 ==========
             questionDisplay.innerText = questionBank['财务经理'] || '请分享一次您成功处理复杂财务项目的经历。';
         })();
+   
     </script>
 </body>
 </html>
