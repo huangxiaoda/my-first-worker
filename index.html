@@ -326,7 +326,7 @@
         <!-- 头部 -->
         <div class="header">
             <div class="title">
-                <h1>🚀 AI求职助手 · Cloudflare版</h1>
+                <h1>🚀 AI求职助手</h1>
             </div>
             <div class="api-status">
                 <span class="status-dot"></span>
@@ -335,16 +335,16 @@
         </div>
 
             <!-- Worker地址配置 -->
-            <div class="config-box">
-        <span style="font-weight:600;">🌐 Worker地址：</span>
-        <input type="text" id="workerUrl" class="config-input" 
-               value="https://api.apheriai.com/api/ai-assistant" 
-               placeholder="https://your-worker.workers.dev">
-        <button class="primary-btn" id="testWorkerBtn">
-            <span>🔌</span> 测试连接
-        </button>
-    </div>
-        <div id="testResult" class="test-result">⚡ 请输入您的Worker地址并点击"测试连接"</div>
+           <!-- 隐藏输入框，只保留按钮 -->
+        <div class="config-box">
+            <input type="hidden" id="workerUrl" value="https://api.apheriai.com/api/ai-assistant">
+            <button class="primary-btn" id="testWorkerBtn">
+                <span>🔌</span> 测试连接
+            </button>
+        </div>
+        <div class="service-status" style="background:#e6f7e6; padding:10px; border-radius:40px; margin-bottom:20px; text-align:center;">
+        ✅ 智能服务已就绪
+        </div>
 
         <!-- 主面板 -->
         <div class="dashboard">
