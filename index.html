@@ -5,8 +5,380 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI求职助手 · 完整版</title>
     <style>
-        /* 样式同前，此处省略节省篇幅，请直接使用您已有的样式 */
-        /* 注意：保留您之前的所有样式，包括新增的 .small-btn 和弹窗样式 */
+           
+         /* ========== 全局样式 ========== */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+        }
+
+        body {
+            background: #f5fafd;
+            min-height: 100vh;
+            padding: 1.5rem;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        /* 头部 */
+        .header {
+            background: white;
+            border-radius: 1.5rem;
+            padding: 1.5rem 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 8px 20px rgba(0,30,60,0.08);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .title h1 {
+            font-size: 1.8rem;
+            background: linear-gradient(135deg, #0a2a44, #2563eb);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .api-status {
+            background: #e6f7e6;
+            color: #2e7d32;
+            padding: 0.5rem 1.5rem;
+            border-radius: 40px;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            background: #22c55e;
+            border-radius: 50%;
+            display: inline-block;
+        }
+
+        /* 配置框 */
+        .config-box {
+            background: white;
+            padding: 1.5rem 2rem;
+            border-radius: 1.5rem;
+            margin-bottom: 2rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        }
+
+        .config-input {
+            flex: 2;
+            min-width: 300px;
+            padding: 1rem 1.5rem;
+            border: 2px solid #2563eb30;
+            border-radius: 60px;
+            font-size: 1rem;
+            outline: none;
+            transition: 0.2s;
+        }
+
+        .config-input:focus {
+            border-color: #2563eb;
+            box-shadow: 0 0 0 4px #2563eb20;
+        }
+
+        .primary-btn {
+            background: #0e2d4e;
+            color: white;
+            border: none;
+            padding: 1rem 2rem;
+            border-radius: 60px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            white-space: nowrap;
+        }
+
+        .primary-btn:hover {
+            background: #1b3f64;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(0,30,60,0.2);
+        }
+
+        .small-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            padding: 4px 12px;
+            margin-left: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .small-btn:hover {
+            background: #1d4ed8;
+        }
+
+        .test-result {
+            background: white;
+            padding: 1rem 1.5rem;
+            border-radius: 1rem;
+            font-family: monospace;
+            font-size: 0.95rem;
+            margin-bottom: 2rem;
+            border-left: 6px solid #2563eb;
+        }
+
+        /* 主面板 */
+        .dashboard {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+
+        .panel {
+            background: white;
+            border-radius: 1.8rem;
+            padding: 2rem;
+            box-shadow: 0 12px 30px rgba(0,30,60,0.08);
+        }
+
+        .panel h2 {
+            font-size: 1.5rem;
+            color: #0a2a44;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .badge {
+            background: #e6f0fa;
+            color: #1d4e7c;
+            font-size: 0.8rem;
+            padding: 0.2rem 0.8rem;
+            border-radius: 40px;
+            font-weight: 400;
+        }
+
+        .resume-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.8rem;
+            color: #2d5477;
+            font-weight: 500;
+        }
+
+        .editable-area {
+            background: #f8fbfe;
+            border: 2px dashed #94b8da;
+            border-radius: 1.2rem;
+            padding: 1.5rem;
+            min-height: 250px;
+            outline: none;
+            line-height: 1.7;
+            font-size: 0.95rem;
+            color: #1a334b;
+            white-space: pre-wrap;
+            margin-bottom: 1rem;
+            overflow-y: auto;
+        }
+
+        .editable-area:focus {
+            border-color: #2563eb;
+            background: white;
+        }
+
+        .optimized-box {
+            background: #f5fafd;
+            border-radius: 1.2rem;
+            padding: 1.5rem;
+            line-height: 1.8;
+            border-left: 6px solid #2563eb;
+            margin: 1rem 0;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin: 1rem 0;
+            flex-wrap: wrap;
+        }
+
+        /* 职位网格 */
+        .job-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 0.5rem;
+            background: #f5f9ff;
+            padding: 1rem;
+            border-radius: 1.2rem;
+            margin-bottom: 1.5rem;
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #d5e5f2;
+        }
+
+        .job-tag {
+            background: white;
+            border: 1px solid #cde0ee;
+            padding: 0.6rem 0.3rem;
+            border-radius: 40px;
+            font-size: 0.85rem;
+            text-align: center;
+            cursor: pointer;
+            transition: 0.2s;
+            color: #1d4a74;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .job-tag:hover {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+            transform: translateY(-2px);
+        }
+
+        .job-tag.active {
+            background: #2563eb;
+            color: white;
+            border-color: #2563eb;
+            font-weight: 500;
+        }
+
+        .custom-question {
+            display: flex;
+            gap: 0.5rem;
+            margin: 1rem 0;
+        }
+
+        .custom-question input {
+            flex: 1;
+            padding: 0.8rem 1.2rem;
+            border: 2px solid #cde0ee;
+            border-radius: 60px;
+            font-size: 0.95rem;
+            outline: none;
+        }
+
+        .question-display {
+            background: #f0f7ff;
+            padding: 1.2rem;
+            border-radius: 1rem;
+            margin: 1rem 0;
+            font-weight: 500;
+            color: #0a2a44;
+            border-left: 6px solid #2563eb;
+            line-height: 1.6;
+        }
+
+        .answer-area {
+            background: white;
+            border: 1px solid #cde0ee;
+            border-radius: 1.2rem;
+            padding: 1.2rem;
+            margin: 1rem 0;
+        }
+
+        .answer-area textarea {
+            width: 100%;
+            border: none;
+            background: transparent;
+            resize: vertical;
+            min-height: 120px;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #1d344a;
+            outline: none;
+            font-family: inherit;
+        }
+
+        .feedback-box {
+            background: #f0f7fa;
+            border-radius: 1.2rem;
+            padding: 1.5rem;
+            border-left: 6px solid #059669;
+            margin-top: 1rem;
+            white-space: pre-wrap;
+            max-height: 350px;
+            overflow-y: auto;
+            line-height: 1.7;
+        }
+
+        .footer-note {
+            background: #dbeafe;
+            padding: 1rem 2rem;
+            border-radius: 60px;
+            color: #1e4b7a;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 0.95rem;
+            margin-top: 2rem;
+        }
+
+        @media (max-width: 1000px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* 购买弹窗 */
+        #purchaseModal {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            z-index: 1000;
+            width: 300px;
+        }
+        #purchaseModal h3 {
+            margin-bottom: 15px;
+            color: #0a2a44;
+        }
+        #purchaseModal button {
+            display: block;
+            width: 100%;
+            margin: 8px 0;
+            padding: 10px;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 40px;
+            cursor: pointer;
+        }
+        #purchaseModal button:hover {
+            background: #1d4ed8;
+        }
+        #purchaseModal button:last-child {
+            background: #ccc;
+            color: #333;
+        }
+        #purchaseModal button:last-child:hover {
+            background: #bbb;
+        }
+
     </style>
 </head>
 <body>
