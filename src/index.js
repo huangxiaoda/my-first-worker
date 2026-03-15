@@ -1,4 +1,6 @@
 
+const DEEPSEEK_API_ENDPOINT = "https://api.deepseek.com/chat/completions";
+
 //基于origin字符串的动态判断
 function getCorsHeaders(origin) {
   // 判断 origin 是否以 .apheriai.com 结尾，或者是 https://apheriai.com 本身
