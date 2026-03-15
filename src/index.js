@@ -16,15 +16,13 @@ const DEEPSEEK_API_ENDPOINT = "https://api.deepseek.com/chat/completions";
 
 // CORS 处理（支持无 origin 和特定域名）
 function getCorsHeaders(origin) {
-  if (!origin || origin === 'null' || origin.endsWith('.apheriai.com') || origin === 'https://apheriai.com') {
-    return {
-      'Access-Control-Allow-Origin': origin || '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
-      'Access-Control-Max-Age': '86400',
-    };
-  }
-  return {};
+  // 临时允许所有来源，包括 null 和 undefined
+  return {
+    'Access-Control-Allow-Origin': origin || '*',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Max-Age': '86400',
+  };
 }
 
 // 错误响应（支持额外字段）
