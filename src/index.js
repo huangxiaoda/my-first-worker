@@ -252,6 +252,38 @@ if (action !== 'test' && data?.userId) {
   }
 }
 
+
+// 处理套餐升级（支付成功回调）
+async function handleUpgradePlan(request, env, ctx) {
+    const origin = request.headers.get('Origin') || '';
+
+    // 处理 OPTIONS 预检
+    if (request.method === 'OPTIONS') {
+        return new Response(null, { headers: getCorsHeaders(origin) });
+    }
+
+    try {
+        const body = await request.json();
+        const { userId, planType, receipt } = body;
+
+        if (!userId || !planType) {
+            return errorResponse('缺少 userId 或 planType', 400, origin);
+        }
+
+        // TODO: 强烈建议验证苹果收据的真实性（生产环境必须）
+        // 此处仅作演示，实际应调用苹果验证接口
+        console.log('收到升级请求', { userId, planType, receipt });
+
+        // 更新用户套餐（需确保 updateUserPlan 函数已定义）
+        await updateUserPlan(userId, planType, env);
+
+        return successResponse({ message: '套餐升级成功' }, origin);
+    } catch (error) {
+        console.error('升级套餐错误:', error);
+        return errorResponse('服务器内部错误', 500, origin);
+    }
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -282,6 +314,11 @@ export default {
       return handleAIAssistant(request, env, ctx);
     }
 
+    // 插入新路由
+if (url.pathname === '/api/upgrade-plan' && request.method === 'POST') {
+    return handleUpgradePlan(request, env, ctx);
+}
+   
     // 根目录提示
     if (url.pathname === '/') {
       return new Response('Welcome to AI Job Assistant API! Try /api/hello or POST /api/ai-assistant', {
