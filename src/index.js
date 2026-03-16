@@ -7,7 +7,7 @@ var PLAN_LIMITS = {
   // 免费每月90次
   "monthly": 100,
   "quarterly": 100,
-  "yearly": 100
+  "yearly": 100,
   "token30": 30 
 };
 var KV_KEYS = {
