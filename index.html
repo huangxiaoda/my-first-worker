@@ -719,6 +719,7 @@
 
             function updateRemainingDisplay(remaining) {
                 if (elements.remainingSpan) elements.remainingSpan.innerText = `剩余次数：${remaining}`;
+                console.log('updateRemainingDisplay 被调用，剩余次数：', remaining);
             }
 
             window.fetchRemaining = async function() {
