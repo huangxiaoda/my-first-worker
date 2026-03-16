@@ -109,6 +109,66 @@ async function handleAIAssistant(request, env, ctx) {
     if (action === "interview-feedback" && (!data?.question || !data?.answer || !data?.job)) {
       return errorResponse("\u7F3A\u5C11 question/answer/job", 400, origin);
     }
+   
+      // 苹果收据验证（生产环境）
+    const APPLE_VERIFY_URL = "https://buy.itunes.apple.com/verifyReceipt";
+    // 沙箱环境（测试用）可切换为 "https://sandbox.itunes.apple.com/verifyReceipt"
+    const verifyUrl = APPLE_VERIFY_URL;
+
+    // 您的苹果内购共享密钥（在 App Store Connect 中获取）
+    const PASSWORD = env.APPLE_SHARED_SECRET; // 建议作为环境变量存储
+
+    const verifyResponse = await fetch(verifyUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        "receipt-data": receipt,
+        "password": PASSWORD,
+        "exclude-old-transactions": true
+      })
+    });
+
+    const verifyResult = await verifyResponse.json();
+
+    // 验证状态码
+    if (verifyResult.status !== 0) {
+      console.error("收据验证失败", verifyResult);
+      // 如果状态为 21007，说明是沙箱环境收据，应切换到沙箱 URL 重新验证
+      if (verifyResult.status === 21007) {
+        // 可以在这里重试沙箱验证（简化起见，先返回错误，建议实现重试逻辑）
+        return errorResponse("收据为沙箱环境，请使用沙箱验证", 403, origin);
+      }
+      return errorResponse("收据验证失败", 403, origin);
+    }
+
+    // 可选：进一步验证 product_id 是否匹配用户选择的 planType
+    // 从 verifyResult.receipt.in_app 中获取最近一笔交易，检查 product_id
+    const inApp = verifyResult.receipt?.in_app;
+    if (inApp && inApp.length > 0) {
+      const latestTransaction = inApp[inApp.length - 1];
+      const purchasedProductId = latestTransaction.product_id;
+      // 简单映射（需根据您实际商品 ID 调整）
+      const expectedProductId = {
+        monthly: "com.yourapp.monthly_sub",
+        quarterly: "com.yourapp.quarterly_sub",
+        yearly: "com.yourapp.yearly_sub",
+        token30: "com.yourapp.token30"
+      }[planType];
+      if (purchasedProductId !== expectedProductId) {
+        return errorResponse("商品 ID 不匹配", 403, origin);
+      }
+    }
+
+    // 验证通过，更新用户套餐
+    await updateUserPlan(userId, planType, env);
+
+    return successResponse({ message: "套餐升级成功" }, origin);
+  } catch (error) {
+    console.error("升级套餐错误:", error);
+    return errorResponse("服务器内部错误", 500, origin);
+  }
+}
+  
     const userId = data?.userId;
     if (!userId) return errorResponse("\u7F3A\u5C11\u7528\u6237\u6807\u8BC6 userId", 400, origin);
     const quotaCheck = await checkUserQuota(userId, env);
