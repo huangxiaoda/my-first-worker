@@ -197,9 +197,9 @@ var index_default = {
     if (url.pathname === "/api/ai-assistant") {
       return handleAIAssistant(request, env, ctx);
     }
-    if (url.pathname === "/api/upgrade-plan" && request.method === "POST") {
-      return handleUpgradePlan(request, env, ctx);
-    }
+    if (url.pathname === "/api/upgrade-plan") {
+  return handleUpgradePlan(request, env, ctx);
+}
     if (url.pathname === "/") {
       return new Response("Welcome to AI Job Assistant API!", { headers: { "Content-Type": "text/plain" } });
     }
