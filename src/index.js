@@ -8,6 +8,7 @@ var PLAN_LIMITS = {
   "monthly": 100,
   "quarterly": 100,
   "yearly": 100
+  "token30": 30 
 };
 var KV_KEYS = {
   USER_PLAN: "user:plan:",
@@ -178,6 +179,12 @@ async function handleUpgradePlan(request, env, ctx) {
     if (!userId || !planType) return errorResponse("\u7F3A\u5C11 userId \u6216 planType", 400, origin);
     console.log("\u6536\u5230\u5347\u7EA7\u8BF7\u6C42", { userId, planType, receipt });
     await updateUserPlan(userId, planType, env);
+    // 如果是次数包，重置当月已用次数（或者根据业务决定累加）
+  if (planType === 'token30') {
+    const month = getCurrentMonth();
+    const usageKey = KV_KEYS.USER_USAGE + userId + ":" + month;
+    await env.KV_NAMESPACE.put(usageKey, "0");  // 重置为0
+  }
     return successResponse({ message: "\u5957\u9910\u5347\u7EA7\u6210\u529F" }, origin);
   } catch (error) {
     console.error("\u5347\u7EA7\u5957\u9910\u9519\u8BEF:", error);
