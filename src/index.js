@@ -3,8 +3,8 @@ var __name = (target, value) => __defProp(target, "name", { value, configurable:
 
 // src/index.js
 var PLAN_LIMITS = {
-  "free": 90,
-  // 免费每月90次
+  "free": 5,
+  // 免费每月5次
   "monthly": 100,
   "quarterly": 100,
   "yearly": 100,
