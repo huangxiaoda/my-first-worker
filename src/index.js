@@ -1,46 +1,41 @@
-// ==================== 配置区 ====================
-const PLAN_LIMITS = {
-  'free': 90,      // 免费每月90次
-  'monthly': 100,
-  'quarterly': 100,
-  'yearly': 100
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+
+// src/index.js
+var PLAN_LIMITS = {
+  "free": 90,
+  // 免费每月90次
+  "monthly": 100,
+  "quarterly": 100,
+  "yearly": 100
 };
-
-const KV_KEYS = {
-  USER_PLAN: 'user:plan:',
-  USER_USAGE: 'user:usage:'
+var KV_KEYS = {
+  USER_PLAN: "user:plan:",
+  USER_USAGE: "user:usage:"
 };
-
-const DEEPSEEK_API_ENDPOINT = "https://api.deepseek.com/chat/completions";
-// ================================================
-
-// CORS 处理（支持无 origin 和特定域名）
+var DEEPSEEK_API_ENDPOINT = "https://api.deepseek.com/chat/completions";
 function getCorsHeaders(origin) {
-  // 临时允许所有来源，包括 null 和 undefined
   return {
-    'Access-Control-Allow-Origin': origin || '*',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Max-Age': '86400',
+    "Access-Control-Allow-Origin": origin || "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Max-Age": "86400"
   };
 }
-
-// 错误响应（支持额外字段）
-function errorResponse(message, status = 400, origin = '', extra = {}) {
+__name(getCorsHeaders, "getCorsHeaders");
+function errorResponse(message, status = 400, origin = "", extra = {}) {
   return new Response(JSON.stringify({ success: false, error: message, ...extra }), {
     status,
-    headers: { 'Content-Type': 'application/json', ...getCorsHeaders(origin) },
+    headers: { "Content-Type": "application/json", ...getCorsHeaders(origin) }
   });
 }
-
-// 成功响应（支持额外字段）
-function successResponse(data, origin = '', extra = {}) {
+__name(errorResponse, "errorResponse");
+function successResponse(data, origin = "", extra = {}) {
   return new Response(JSON.stringify({ success: true, result: data, ...extra }), {
-    headers: { 'Content-Type': 'application/json', ...getCorsHeaders(origin) },
+    headers: { "Content-Type": "application/json", ...getCorsHeaders(origin) }
   });
 }
-
-// 频率限制（KV）
+__name(successResponse, "successResponse");
 async function checkRateLimit(ip, env, origin) {
   if (!env.KV_NAMESPACE) return true;
   const key = `ratelimit:${ip}`;
@@ -51,190 +46,168 @@ async function checkRateLimit(ip, env, origin) {
   await env.KV_NAMESPACE.put(key, count.toString(), { expirationTtl: 86400 });
   return true;
 }
-
+__name(checkRateLimit, "checkRateLimit");
 function getCurrentMonth() {
-  const d = new Date();
+  const d = /* @__PURE__ */ new Date();
   return `${d.getFullYear()}-${d.getMonth() + 1}`;
 }
-
-// 检查用户额度
+__name(getCurrentMonth, "getCurrentMonth");
 async function checkUserQuota(userId, env) {
   if (!env.KV_NAMESPACE) return { allowed: true, remaining: 999 };
   const month = getCurrentMonth();
   const planKey = KV_KEYS.USER_PLAN + userId;
-  const usageKey = KV_KEYS.USER_USAGE + userId + ':' + month;
-  let plan = await env.KV_NAMESPACE.get(planKey) || 'free';
-  let used = parseInt(await env.KV_NAMESPACE.get(usageKey) || '0');
+  const usageKey = KV_KEYS.USER_USAGE + userId + ":" + month;
+  let plan = await env.KV_NAMESPACE.get(planKey) || "free";
+  let used = parseInt(await env.KV_NAMESPACE.get(usageKey) || "0");
   const limit = PLAN_LIMITS[plan] || PLAN_LIMITS.free;
   const remaining = limit - used;
-  if (remaining <= 0) return { allowed: false, reason: '当月次数已用完，请升级套餐或下月再来' };
+  if (remaining <= 0) return { allowed: false, reason: "\u5F53\u6708\u6B21\u6570\u5DF2\u7528\u5B8C\uFF0C\u8BF7\u5347\u7EA7\u5957\u9910\u6216\u4E0B\u6708\u518D\u6765" };
   return { allowed: true, remaining, plan, used, limit };
 }
-
-// 增加使用次数
+__name(checkUserQuota, "checkUserQuota");
 async function incrementUserUsage(userId, env) {
   if (!env.KV_NAMESPACE) return;
   const month = getCurrentMonth();
-  const usageKey = KV_KEYS.USER_USAGE + userId + ':' + month;
-  const current = parseInt(await env.KV_NAMESPACE.get(usageKey) || '0');
+  const usageKey = KV_KEYS.USER_USAGE + userId + ":" + month;
+  const current = parseInt(await env.KV_NAMESPACE.get(usageKey) || "0");
   await env.KV_NAMESPACE.put(usageKey, (current + 1).toString(), { expirationTtl: 35 * 24 * 3600 });
 }
-
-// 更新套餐
+__name(incrementUserUsage, "incrementUserUsage");
 async function updateUserPlan(userId, planType, env) {
   if (!env.KV_NAMESPACE) return;
   const planKey = KV_KEYS.USER_PLAN + userId;
   await env.KV_NAMESPACE.put(planKey, planType);
 }
-
-// 主处理函数
+__name(updateUserPlan, "updateUserPlan");
 async function handleAIAssistant(request, env, ctx) {
-  const origin = request.headers.get('Origin') || '';
-  if (request.method === 'OPTIONS') return new Response(null, { headers: getCorsHeaders(origin) });
-  if (request.method !== 'POST') return errorResponse('Method not allowed', 405, origin);
-
+  const origin = request.headers.get("Origin") || "";
+  if (request.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(origin) });
+  if (request.method !== "POST") return errorResponse("Method not allowed", 405, origin);
   try {
     const body = await request.json();
     const { action, data } = body;
-
-    // ----- test 请求（不检查频率，但检查 userId 以返回剩余次数）-----
-    if (action === 'test') {
+    if (action === "test") {
       if (data?.userId) {
         const quota = await checkUserQuota(data.userId, env);
-        return new Response(JSON.stringify({ success: true, result: '连接成功', remaining: quota.remaining }), {
-          headers: { 'Content-Type': 'application/json', ...getCorsHeaders(origin) }
+        return new Response(JSON.stringify({ success: true, result: "\u8FDE\u63A5\u6210\u529F", remaining: quota.remaining }), {
+          headers: { "Content-Type": "application/json", ...getCorsHeaders(origin) }
         });
       }
-      return successResponse('连接成功', origin);
+      return successResponse("\u8FDE\u63A5\u6210\u529F", origin);
     }
-
-    // 频率限制
-    const clientIP = request.headers.get('CF-Connecting-IP') || '';
+    const clientIP = request.headers.get("CF-Connecting-IP") || "";
     if (!await checkRateLimit(clientIP, env, origin)) {
-      return errorResponse('今日调用次数已达上限（100次）', 429, origin);
+      return errorResponse("\u4ECA\u65E5\u8C03\u7528\u6B21\u6570\u5DF2\u8FBE\u4E0A\u9650\uFF08100\u6B21\uFF09", 429, origin);
     }
-
-    // 验证 action 和必要字段
-    if (!action || !['optimize-resume', 'interview-feedback'].includes(action)) {
-      return errorResponse('无效的 action', 400, origin);
+    if (!action || !["optimize-resume", "interview-feedback"].includes(action)) {
+      return errorResponse("\u65E0\u6548\u7684 action", 400, origin);
     }
-    if (action === 'optimize-resume' && (!data?.resume || !data?.jobTarget)) {
-      return errorResponse('缺少 resume 或 jobTarget', 400, origin);
+    if (action === "optimize-resume" && (!data?.resume || !data?.jobTarget)) {
+      return errorResponse("\u7F3A\u5C11 resume \u6216 jobTarget", 400, origin);
     }
-    if (action === 'interview-feedback' && (!data?.question || !data?.answer || !data?.job)) {
-      return errorResponse('缺少 question/answer/job', 400, origin);
+    if (action === "interview-feedback" && (!data?.question || !data?.answer || !data?.job)) {
+      return errorResponse("\u7F3A\u5C11 question/answer/job", 400, origin);
     }
-
-    // 用户额度检查
     const userId = data?.userId;
-    if (!userId) return errorResponse('缺少用户标识 userId', 400, origin);
+    if (!userId) return errorResponse("\u7F3A\u5C11\u7528\u6237\u6807\u8BC6 userId", 400, origin);
     const quotaCheck = await checkUserQuota(userId, env);
     if (!quotaCheck.allowed) return errorResponse(quotaCheck.reason, 403, origin);
     const remaining = quotaCheck.remaining;
+    let systemPrompt = "", userPrompt = "";
+    if (action === "optimize-resume") {
+      systemPrompt = `\u4F60\u662F\u4E00\u4F4D\u8D44\u6DF1\u7684\u7B80\u5386\u4F18\u5316\u4E13\u5BB6\u3002\u8BF7\u6839\u636E\u76EE\u6807\u5C97\u4F4D\u4F18\u5316\u7B80\u5386\uFF0C\u8981\u6C42\uFF1A
+1. \u4F7F\u7528\u91CF\u5316\u8868\u8FBE\uFF08\u7528\u5177\u4F53\u6570\u5B57\u7A81\u51FA\u4E1A\u7EE9\uFF09
+2. \u4F7F\u7528\u4E3B\u52A8\u8BED\u6001\u548C\u5F3A\u52A8\u8BCD\uFF08\u5982"\u4E3B\u5BFC"\u3001"\u8D1F\u8D23"\u3001"\u5B9E\u73B0"\uFF09
+3. \u4FDD\u6301\u771F\u5B9E\uFF0C\u4E0D\u7F16\u9020\u7ECF\u5386
+4. \u53EF\u4EE5\u7528\u661F\u53F7(*)\u6807\u6CE8\u91CD\u70B9\u5185\u5BB9\uFF0C\u8BA9\u7528\u6237\u4E00\u76EE\u4E86\u7136
+5. \u8FD4\u56DE\u683C\u5F0F\uFF1A\u4F18\u5316\u540E\u7684\u5B8C\u6574\u7B80\u5386\uFF0C\u6BB5\u843D\u6E05\u6670`;
+      userPrompt = `\u76EE\u6807\u5C97\u4F4D\uFF1A${data.jobTarget}
 
-    // 构建提示词
-    let systemPrompt = '', userPrompt = '';
-    if (action === 'optimize-resume') {
-      systemPrompt = `你是一位资深的简历优化专家。请根据目标岗位优化简历，要求：
-1. 使用量化表达（用具体数字突出业绩）
-2. 使用主动语态和强动词（如"主导"、"负责"、"实现"）
-3. 保持真实，不编造经历
-4. 可以用星号(*)标注重点内容，让用户一目了然
-5. 返回格式：优化后的完整简历，段落清晰`;
-      userPrompt = `目标岗位：${data.jobTarget}\n\n原始简历：\n${data.resume}`;
+\u539F\u59CB\u7B80\u5386\uFF1A
+${data.resume}`;
     } else {
-      systemPrompt = `你是一位专业的${data.job}面试官。请对面试者的回答进行点评，要求：
-1. 指出回答的优点
-2. 指出不足之处
-3. 提供更好的回答思路或建议
-4. 可以用星号(*)标注重点建议
-5. 返回格式：段落清晰，便于阅读`;
-      userPrompt = `面试问题：${data.question}\n\n面试者回答：${data.answer}`;
+      systemPrompt = `\u4F60\u662F\u4E00\u4F4D\u4E13\u4E1A\u7684${data.job}\u9762\u8BD5\u5B98\u3002\u8BF7\u5BF9\u9762\u8BD5\u8005\u7684\u56DE\u7B54\u8FDB\u884C\u70B9\u8BC4\uFF0C\u8981\u6C42\uFF1A
+1. \u6307\u51FA\u56DE\u7B54\u7684\u4F18\u70B9
+2. \u6307\u51FA\u4E0D\u8DB3\u4E4B\u5904
+3. \u63D0\u4F9B\u66F4\u597D\u7684\u56DE\u7B54\u601D\u8DEF\u6216\u5EFA\u8BAE
+4. \u53EF\u4EE5\u7528\u661F\u53F7(*)\u6807\u6CE8\u91CD\u70B9\u5EFA\u8BAE
+5. \u8FD4\u56DE\u683C\u5F0F\uFF1A\u6BB5\u843D\u6E05\u6670\uFF0C\u4FBF\u4E8E\u9605\u8BFB`;
+      userPrompt = `\u9762\u8BD5\u95EE\u9898\uFF1A${data.question}
+
+\u9762\u8BD5\u8005\u56DE\u7B54\uFF1A${data.answer}`;
     }
-
-    // 调用 DeepSeek API
     const apiKey = env.DEEPSEEK_API_KEY;
-    if (!apiKey) return errorResponse('服务器配置错误：未设置 API 密钥', 500, origin);
+    if (!apiKey) return errorResponse("\u670D\u52A1\u5668\u914D\u7F6E\u9519\u8BEF\uFF1A\u672A\u8BBE\u7F6E API \u5BC6\u94A5", 500, origin);
     const deepseekResponse = await fetch(DEEPSEEK_API_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
       body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [{ role: 'system', content: systemPrompt }, { role: 'user', content: userPrompt }],
+        model: "deepseek-chat",
+        messages: [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }],
         temperature: 0.7,
-        max_tokens: 3000,
-        stream: false,
-      }),
+        max_tokens: 3e3,
+        stream: false
+      })
     });
-
     if (!deepseekResponse.ok) {
       const errorData = await deepseekResponse.json();
-      console.error('DeepSeek API 错误:', errorData);
-      return errorResponse(`AI 服务调用失败: ${deepseekResponse.status}`, 502, origin);
+      console.error("DeepSeek API \u9519\u8BEF:", errorData);
+      return errorResponse(`AI \u670D\u52A1\u8C03\u7528\u5931\u8D25: ${deepseekResponse.status}`, 502, origin);
     }
-
     const result = await deepseekResponse.json();
     const aiMessage = result.choices[0].message.content;
-
-    // 记录调用日志（可选）
     if (env.KV_NAMESPACE) {
-      const logKey = `log:${new Date().toISOString().slice(0, 10)}`;
-      const currentLog = await env.KV_NAMESPACE.get(logKey) || '0';
+      const logKey = `log:${(/* @__PURE__ */ new Date()).toISOString().slice(0, 10)}`;
+      const currentLog = await env.KV_NAMESPACE.get(logKey) || "0";
       await env.KV_NAMESPACE.put(logKey, (parseInt(currentLog) + 1).toString());
     }
-
-    // 增加用户使用次数（异步，忽略错误）
-    incrementUserUsage(userId, env).catch(e => console.error('增量记录失败:', e));
-
-    // 返回结果，附带剩余次数
+    incrementUserUsage(userId, env).catch((e) => console.error("\u589E\u91CF\u8BB0\u5F55\u5931\u8D25:", e));
     return successResponse(aiMessage, origin, { remaining });
   } catch (error) {
-    console.error('Worker 内部错误:', error);
-    return errorResponse('服务器内部错误', 500, origin);
+    console.error("Worker \u5185\u90E8\u9519\u8BEF:", error);
+    return errorResponse("\u670D\u52A1\u5668\u5185\u90E8\u9519\u8BEF", 500, origin);
   }
 }
-
-// 套餐升级回调
+__name(handleAIAssistant, "handleAIAssistant");
 async function handleUpgradePlan(request, env, ctx) {
-  const origin = request.headers.get('Origin') || '';
-  if (request.method === 'OPTIONS') return new Response(null, { headers: getCorsHeaders(origin) });
+  const origin = request.headers.get("Origin") || "";
+  if (request.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(origin) });
   try {
     const body = await request.json();
     const { userId, planType, receipt } = body;
-    if (!userId || !planType) return errorResponse('缺少 userId 或 planType', 400, origin);
-    console.log('收到升级请求', { userId, planType, receipt });
+    if (!userId || !planType) return errorResponse("\u7F3A\u5C11 userId \u6216 planType", 400, origin);
+    console.log("\u6536\u5230\u5347\u7EA7\u8BF7\u6C42", { userId, planType, receipt });
     await updateUserPlan(userId, planType, env);
-    return successResponse({ message: '套餐升级成功' }, origin);
+    return successResponse({ message: "\u5957\u9910\u5347\u7EA7\u6210\u529F" }, origin);
   } catch (error) {
-    console.error('升级套餐错误:', error);
-    return errorResponse('服务器内部错误', 500, origin);
+    console.error("\u5347\u7EA7\u5957\u9910\u9519\u8BEF:", error);
+    return errorResponse("\u670D\u52A1\u5668\u5185\u90E8\u9519\u8BEF", 500, origin);
   }
 }
-
-export default {
+__name(handleUpgradePlan, "handleUpgradePlan");
+var index_default = {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    const origin = request.headers.get('Origin') || '';
-
-    if (url.pathname === '/api/hello') {
-      return new Response(JSON.stringify({ message: 'Hello', status: 'success' }), {
-        headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
+    const origin = request.headers.get("Origin") || "";
+    if (url.pathname === "/api/hello") {
+      return new Response(JSON.stringify({ message: "Hello", status: "success" }), {
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" }
       });
     }
-
-    if (url.pathname === '/api/ai-assistant') {
+    if (url.pathname === "/api/ai-assistant") {
       return handleAIAssistant(request, env, ctx);
     }
-
-    if (url.pathname === '/api/upgrade-plan' && request.method === 'POST') {
+    if (url.pathname === "/api/upgrade-plan" && request.method === "POST") {
       return handleUpgradePlan(request, env, ctx);
     }
-
-    if (url.pathname === '/') {
-      return new Response('Welcome to AI Job Assistant API!', { headers: { 'Content-Type': 'text/plain' } });
+    if (url.pathname === "/") {
+      return new Response("Welcome to AI Job Assistant API!", { headers: { "Content-Type": "text/plain" } });
     }
-
-    return new Response('Not Found', { status: 404 });
-  },
+    return new Response("Not Found", { status: 404 });
+  }
 };
+export {
+  index_default as default
+};
+//# sourceMappingURL=index.js.map
 
