@@ -745,12 +745,9 @@
                         body: JSON.stringify({ action: 'test', data: { userId: window.USER_ID } })
                     });
                     if (response.ok) {
-                        const result = await response.json();
-                        if (result.remaining !== undefined) updateRemainingDisplay(result.remaining);
-                        if (elements.testResult) {
-                            elements.testResult.innerHTML = '<span style="color:#2e7d32;">✅ Worker连接成功！剩余次数：' + (result.remaining ?? '--') + '</span>';
-                        }
-                    } else {
+                      testResult.innerHTML = '<span style="color:#2e7d32;">✅ Worker连接成功！</span>';
+                    }
+                    else {
                         if (elements.testResult) {
                             elements.testResult.innerHTML = `<span style="color:#c62828;">❌ 连接失败，HTTP ${response.status}</span>`;
                         }
