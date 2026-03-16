@@ -550,86 +550,65 @@
         }
         window.USER_ID = getUserId();
 
-        // 定义 purchase 函数（必须全局）
-        window.purchase = async function(plan) {
-            const productMap = {
-                monthly: 'com.yourapp.monthly_sub',
-                quarterly: 'com.yourapp.quarterly_sub',
-                yearly: 'com.yourapp.yearly_sub',
-                token30: 'com.yourapp.token30'
-            };
-            const productId = productMap[plan];
-            if (!productId) return;
+      // 定义 purchase 函数（必须全局）
+window.purchase = async function(plan) {
+    const productMap = {
+        monthly: 'com.yourapp.monthly_sub',
+        quarterly: 'com.yourapp.quarterly_sub',
+        yearly: 'com.yourapp.yearly_sub',
+        token30: 'com.yourapp.token30'
+    };
+    const productId = productMap[plan];
+    if (!productId) return;
 
-            const workerUrlInput = document.getElementById('workerUrl');
-            if (!workerUrlInput) {
-                alert('配置错误：workerUrl 输入框未找到');
-                return;
-            }
-            const WORKER_URL = workerUrlInput.value;
+    const workerUrlInput = document.getElementById('workerUrl');
+    if (!workerUrlInput) {
+        alert('配置错误：workerUrl 输入框未找到');
+        return;
+    }
+    const WORKER_URL = workerUrlInput.value;
 
-            // 判断环境
-            if (typeof uni !== 'undefined' && uni.requestVirtualPayment) {
-                // 真实内购（HBuilderX）
-                uni.requestVirtualPayment({
-                    provider: 'appleiap',
-                    orderInfo: {
-                        productId: productId,
-                        quantity: 1,
-                        type: plan === 'token30' ? 'consumable' : 'auto-renewable-subscription',
-                        appAccountToken: window.USER_ID
-                    },
-                    success: (res) => {
-                        fetch(WORKER_URL.replace('/api/ai-assistant', '/api/upgrade-plan'), {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                userId: window.USER_ID,
-                                planType: plan,
-                                receipt: res.transactionReceipt
-                            })
-                        })
-                        .then(res => res.json())
-                        .then(data => {
-                            if (data.success) {
-                                uni.showToast({ title: '购买成功' });
-                                document.getElementById('purchaseModal').style.display = 'none';
-                                if (window.fetchRemaining) window.fetchRemaining();
-                            } else {
-                                uni.showToast({ title: '升级失败: ' + (data.error || '未知错误'), icon: 'none' });
-                            }
-                        })
-                        .catch(() => uni.showToast({ title: '网络错误', icon: 'none' }));
-                    },
-                    fail: (err) => {
-                        uni.showToast({ title: '支付失败', icon: 'none' });
-                    }
-                });
-            } else {
-                // 模拟环境（网页测试）
-                try {
-                    const response = await fetch(WORKER_URL.replace('/api/ai-assistant', '/api/upgrade-plan'), {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            userId: window.USER_ID,
-                            planType: plan,
-                            receipt: 'mock_receipt'
-                        })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        alert('模拟购买成功！');
+    // 真实内购（HBuilderX 环境）
+    if (typeof uni !== 'undefined' && uni.requestVirtualPayment) {
+        uni.requestVirtualPayment({
+            provider: 'appleiap',
+            orderInfo: {
+                productId: productId,
+                quantity: 1,
+                type: plan === 'token30' ? 'consumable' : 'auto-renewable-subscription',
+                appAccountToken: window.USER_ID
+            },
+            success: (res) => {
+                fetch(WORKER_URL.replace('/api/ai-assistant', '/api/upgrade-plan'), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: window.USER_ID,
+                        planType: plan,
+                        receipt: res.transactionReceipt
+                    })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        uni.showToast({ title: '购买成功' });
                         document.getElementById('purchaseModal').style.display = 'none';
                         if (window.fetchRemaining) window.fetchRemaining();
                     } else {
-                        alert('升级失败：' + (result.error || '未知错误'));
+                        uni.showToast({ title: '升级失败: ' + (data.error || '未知错误'), icon: 'none' });
                     }
-                } catch (e) {
-                    alert('网络错误：' + e.message);
-                }
+                })
+                .catch(() => uni.showToast({ title: '网络错误', icon: 'none' }));
+            },
+            fail: (err) => {
+                uni.showToast({ title: '支付失败', icon: 'none' });
             }
-        };
+        });
+    } else {
+        // 非 HBuilderX 环境（打包后不会进入这里，保留此提示以防万一）
+        alert('请在 HBuilderX 环境中运行');
+    }
+};
 
         // ========== DOM 加载完成后再绑定事件 ==========
         document.addEventListener('DOMContentLoaded', function() {
