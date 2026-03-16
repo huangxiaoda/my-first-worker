@@ -162,8 +162,16 @@ ${data.resume}`;
       const currentLog = await env.KV_NAMESPACE.get(logKey) || "0";
       await env.KV_NAMESPACE.put(logKey, (parseInt(currentLog) + 1).toString());
     }
-    incrementUserUsage(userId, env).catch((e) => console.error("\u589E\u91CF\u8BB0\u5F55\u5931\u8D25:", e));
-    return successResponse(aiMessage, origin, { remaining });
+  
+    // 等待增加次数完成
+await incrementUserUsage(userId, env).catch(e => console.error('增量记录失败:', e));
+
+// 重新查询最新剩余次数（因为刚才增加了1次）
+const finalQuota = await checkUserQuota(userId, env);
+
+// 返回结果，附带最新的剩余次数
+return successResponse(aiMessage, origin, { remaining: finalQuota.remaining });
+
   } catch (error) {
     console.error("Worker \u5185\u90E8\u9519\u8BEF:", error);
     return errorResponse("\u670D\u52A1\u5668\u5185\u90E8\u9519\u8BEF", 500, origin);
