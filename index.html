@@ -568,7 +568,7 @@ window.purchase = async function(plan) {
     }
     const WORKER_URL = workerUrlInput.value;
 
-    // 真实内购（HBuilderX 环境）
+    // 直接判断是否支持内购（不再使用 else 分支）
     if (typeof uni !== 'undefined' && uni.requestVirtualPayment) {
         uni.requestVirtualPayment({
             provider: 'appleiap',
@@ -601,12 +601,13 @@ window.purchase = async function(plan) {
                 .catch(() => uni.showToast({ title: '网络错误', icon: 'none' }));
             },
             fail: (err) => {
+                console.error('内购失败', err);
                 uni.showToast({ title: '支付失败', icon: 'none' });
             }
         });
     } else {
-        // 非 HBuilderX 环境（打包后不会进入这里，保留此提示以防万一）
-        alert('请在 HBuilderX 环境中运行');
+        // 如果确实不支持，给出明确提示（例如在非 HBuilderX 环境）
+        alert('当前环境不支持内购，请使用真机自定义基座测试');
     }
 };
 
