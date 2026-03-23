@@ -149,9 +149,9 @@ async function handleAIAssistant(request, env, ctx) {
       const purchasedProductId = latestTransaction.product_id;
       // 简单映射（需根据您实际商品 ID 调整）
       const expectedProductId = {
-        monthly: "com.yourapp.monthly_sub",
-        quarterly: "com.yourapp.quarterly_sub",
-        yearly: "com.yourapp.yearly_sub",
+        monthly: "com.yourapp.monthly",
+        quarterly: "com.yourapp.quarterly",
+        yearly: "com.yourapp.yearly",
         token30: "com.yourapp.token30"
       }[planType];
       if (purchasedProductId !== expectedProductId) {
