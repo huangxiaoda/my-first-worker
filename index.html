@@ -401,7 +401,10 @@
             <button onclick="window.purchase('yearly')">年度会员 ¥299/年</button>
             <button onclick="window.purchase('token30')">30次次数包 ¥9.9</button>
             <button onclick="document.getElementById('purchaseModal').style.display='none'">关闭</button>
-        </div>
+		
+		</div>
+       
+
 
         <!-- Worker地址配置（只读模式） -->
         <div class="config-box">
@@ -539,78 +542,159 @@
             if (modal) modal.style.display = 'block';
         };
 
-        // 获取用户 ID（挂载到全局以便 purchase 使用）
-        function getUserId() {
-            let userId = localStorage.getItem('userId');
-            if (!userId) {
-                userId = 'user_' + Math.random().toString(36).substr(2, 9) + Date.now();
-                localStorage.setItem('userId', userId);
-            }
-            return userId;
-        }
-        window.USER_ID = getUserId();
+       // 获取或生成用户 ID（更健壮的版本）
+       function getUserId() {
+           try {
+               // 优先使用 localStorage
+               let userId = localStorage.getItem('userId');
+               if (userId && /^user_[a-z0-9]+_\d+$/.test(userId)) {
+                   return userId;
+               }
+               
+               // 生成新 ID：前缀 + 随机字符串 + 时间戳
+               const randomStr = Math.random().toString(36).substring(2, 11);
+               const timestamp = Date.now();
+               userId = `user_${randomStr}_${timestamp}`;
+               
+               // 尝试存储到 localStorage
+               try {
+                   localStorage.setItem('userId', userId);
+               } catch (e) {
+                   console.warn('localStorage 写入失败，使用内存存储', e);
+                   // 如果 localStorage 不可用，存储到 window 对象（临时）
+                   window._memoryUserId = userId;
+               }
+               
+               return userId;
+           } catch (e) {
+               console.error('获取用户 ID 失败', e);
+               // 降级方案：纯内存 ID
+               return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+           }
+       }
+       
+       // 获取用户 ID（从 localStorage 或内存）
+       window.USER_ID = (function() {
+           try {
+               // 优先从 localStorage 读取
+               let userId = localStorage.getItem('userId');
+               if (!userId) {
+                   // 检查是否有内存备份（localStorage 不可用时）
+                   userId = window._memoryUserId;
+               }
+               if (!userId) {
+                   userId = getUserId();
+               }
+               console.log('当前用户 ID:', userId);
+               return userId;
+           } catch (e) {
+               console.error('读取用户 ID 失败', e);
+               return 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 8);
+           }
+       })();
 
       // 定义 purchase 函数（必须全局）
-window.purchase = async function(plan) {
-    const productMap = {
-        monthly: 'com.yourapp.monthly',
-        quarterly: 'com.yourapp.quarterly',
-        yearly: 'com.yourapp.yearly',
-        token30: 'com.yourapp.token30'
-    };
-    const productId = productMap[plan];
-    if (!productId) return;
+		
+	window.purchase = async function(plan) {
+	    // 1. 检查环境
+	    if (typeof plus === 'undefined' || !plus.payment) {
+	        alert('当前环境不支持内购，请使用自定义基座真机测试');
+	        return;
+	    }
+	
+	    // 2. 产品 ID 映射
+	    const productMap = {
+	        monthly: 'com.apheriai.monthly',
+	        quarterly: 'com.apheriai.quarterly',
+	        yearly: 'com.apheriai.yearly',
+	        token30: 'com.apheriai.token30'
+	    };
+	    const productId = productMap[plan];
+	    if (!productId) {
+	        alert('无效的套餐');
+	        return;
+	    }
+	
+	    console.log('准备发起内购，产品ID:', productId);
+	
+	    // 3. 获取支付通道对象
+	    plus.payment.getChannels(
+	        (channels) => {
+	            console.log('获取到支付通道列表:', channels.map(c => ({ id: c.id, name: c.name })));
+	            let appleChannel = null;
+	            for (let i = 0; i < channels.length; i++) {
+	                if (channels[i].id === 'appleiap') {
+	                    appleChannel = channels[i];
+	                    break;
+	                }
+	            }
+	            if (!appleChannel) {
+	                alert('未找到苹果内购通道，请检查 manifest.json 是否配置了苹果支付');
+	                return;
+	            }
+	
+	            // 4. 发起支付
+	            console.log('开始支付请求，通道:', appleChannel.id, '产品ID:', productId);
+	            plus.payment.request(
+	                appleChannel,
+	                { productid: productId, quantity: 1 },
+	                (result) => {
+	                    console.log('支付成功，凭证:', result);
+	                    const receipt = result.receipt || result.transactionReceipt;
+	                    if (!receipt) {
+	                        alert('未获取到交易凭证');
+	                        return;
+	                    }
+	                    // 发送凭证到你的服务器验证
+	                    const workerUrl = document.getElementById('workerUrl').value;
+	                    const upgradeUrl = workerUrl.replace(/\/api\/ai-assistant$/, '/api/upgrade-plan');
+	                    fetch(upgradeUrl, {
+	                        method: 'POST',
+	                        headers: { 'Content-Type': 'application/json' },
+	                        body: JSON.stringify({
+	                            userId: window.USER_ID,
+	                            planType: plan,
+	                            receipt: receipt
+	                        })
+	                    })
+	                    .then(res => res.json())
+	                    .then(data => {
+	                        if (data.success) {
+	                            alert('购买成功');
+	                            document.getElementById('purchaseModal').style.display = 'none';
+	                            if (window.fetchRemaining) window.fetchRemaining();
+	                        } else {
+	                            alert('升级失败: ' + (data.error || '未知错误'));
+	                        }
+	                    })
+	                    .catch(err => {
+	                        console.error('验证请求错误', err);
+	                        alert('网络错误，请稍后重试');
+	                    });
+	                },
+	                (error) => {
+	                    // 详细打印错误对象的所有信息
+	                    console.error('内购失败详细信息:', JSON.stringify(error, null, 2));
+	                    console.error('错误码:', error.code);
+	                    console.error('错误消息:', error.message);
+	                    
+	                    let errMsg = `支付失败\n错误码: ${error.code}\n消息: ${error.message || '未知错误'}`;
+	                    // 针对 -100 给出提示
+	                    if (error.code === -100) {
+	                        errMsg += '\n\n可能原因：产品ID未在苹果后台创建或未在manifest.json中配置。请检查后重新打包。';
+	                    }
+	                    alert(errMsg);
+	                }
+	            );
+	        },
+	        (error) => {
+	            console.error('获取支付通道失败', error);
+	            alert('获取支付通道失败，请检查配置');
+	        }
+	    );
+	};
 
-    const workerUrlInput = document.getElementById('workerUrl');
-    if (!workerUrlInput) {
-        alert('配置错误：workerUrl 输入框未找到');
-        return;
-    }
-    const WORKER_URL = workerUrlInput.value;
-
-    // 直接判断是否支持内购（不再使用 else 分支）
-    if (typeof uni !== 'undefined' && uni.requestVirtualPayment) {
-        uni.requestVirtualPayment({
-            provider: 'appleiap',
-            orderInfo: {
-                productId: productId,
-                quantity: 1,
-                type: plan === 'token30' ? 'consumable' : 'auto-renewable-subscription',
-                appAccountToken: window.USER_ID
-            },
-            success: (res) => {
-                fetch(WORKER_URL.replace('/api/ai-assistant', '/api/upgrade-plan'), {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        userId: window.USER_ID,
-                        planType: plan,
-                        receipt: res.transactionReceipt
-                    })
-                })
-                .then(res => res.json())
-                .then(data => {
-                    if (data.success) {
-                        uni.showToast({ title: '购买成功' });
-                        document.getElementById('purchaseModal').style.display = 'none';
-                        if (window.fetchRemaining) window.fetchRemaining();
-                    } else {
-                        uni.showToast({ title: '升级失败: ' + (data.error || '未知错误'), icon: 'none' });
-                    }
-                })
-                .catch(() => uni.showToast({ title: '网络错误', icon: 'none' }));
-            },
-            fail: (err) => {
-                console.error('内购失败', err);
-                uni.showToast({ title: '支付失败', icon: 'none' });
-            }
-        });
-    } else {
-        // 如果确实不支持，给出明确提示（例如在非 HBuilderX 环境）
-        alert('当前环境不支持内购，请使用真机自定义基座测试');
-    }
-};
-
+		
         // ========== DOM 加载完成后再绑定事件 ==========
         document.addEventListener('DOMContentLoaded', function() {
             // 获取所有需要操作的元素，并检查是否存在
