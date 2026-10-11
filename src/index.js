@@ -233,103 +233,6 @@ async function handleAIAssistant(request, env, ctx) {
     }
 }
 
-
-// ==================== 纯原生生成 Apple JWT ====================
-
-// Base64URL 编码辅助函数
-function base64urlEncode(str) {
-    return btoa(str)
-        .replace(/\+/g, '-')
-        .replace(/\//g, '_')
-        .replace(/=+$/, '');
-}
-
-// Base64URL 转 Uint8Array 辅助函数
-function base64urlToUint8Array(base64url) {
-    const padding = '='.repeat((4 - (base64url.length % 4)) % 4);
-    const base64 = (base64url + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const rawData = atob(base64);
-    return new Uint8Array([...rawData].map(char => char.charCodeAt(0)));
-}
-
-// 生成 Apple 服务端 API 的 JWT
-async function generateAppleJWT(env) {
-    const header = { alg: 'ES256', kid: env.APPLE_KEY_ID, typ: 'JWT' };
-    const now = Math.floor(Date.now() / 1000);
-    const payload = {
-        iss: env.APPLE_ISSUER_ID,
-        iat: now,
-        exp: now + 300,
-        aud: 'appstoreconnect-v1'
-    };
-
-    const encodedHeader = base64urlEncode(JSON.stringify(header));
-    const encodedPayload = base64urlEncode(JSON.stringify(payload));
-    const unsignedToken = `${encodedHeader}.${encodedPayload}`;
-
-    // 处理私钥：去掉头尾和换行符
-    const privateKeyBase64 = env.APPLE_PRIVATE_KEY
-        .replace('-----BEGIN PRIVATE KEY-----', '')
-        .replace('-----END PRIVATE KEY-----', '')
-        .replace(/\s+/g, ''); 
-
-    const privateKeyBuffer = base64urlToUint8Array(privateKeyBase64);
-
-    // 导入私钥
-    const privateKey = await crypto.subtle.importKey(
-        'pkcs8',
-        privateKeyBuffer,
-        { name: 'ECDSA', namedCurve: 'P-256' },
-        false,
-        ['sign']
-    );
-
-    // 使用 ECDSA SHA-256 签名
-    const signatureBuffer = await crypto.subtle.sign(
-        { name: 'ECDSA', hash: { name: 'SHA-256' } },
-        privateKey,
-        new TextEncoder().encode(unsignedToken)
-    );
-
-    const signatureBase64 = base64urlEncode(
-        String.fromCharCode(...new Uint8Array(signatureBuffer))
-    );
-
-    return `${unsignedToken}.${signatureBase64}`;
-}
-
-// 调用 App Store Server API 查询交易
-async function getTransactionInfo(transactionId, env, environment = 'production') {
-    const jwt = await generateAppleJWT(env);
-    const baseUrl = environment === 'sandbox'
-        ? 'https://api.storekit-sandbox.itunes.apple.com'
-        : 'https://api.storekit.itunes.apple.com';
-
-    const res = await fetch(
-        `${baseUrl}/inApps/v1/transactions/${transactionId}`,
-        { headers: { 'Authorization': `Bearer ${jwt}` } }
-    );
-
-    if (!res.ok) {
-        const errText = await res.text();
-        console.error('App Store Server API 错误:', res.status, errText);
-        if (environment === 'production') {
-            // 生产环境查不到，尝试沙盒
-            return getTransactionInfo(transactionId, env, 'sandbox');
-        }
-        return null;
-    }
-    return res.json();
-}
-
-// 从 JWS 中解码交易信息
-function decodeJWSPayload(jws) {
-    const parts = jws.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return payload;
-}
-
 // ==================== 验证收据（新增，修复支付回调） ====================
 async function handleVerifyReceipt(request, env, ctx) {
     const origin = request.headers.get("Origin") || "";
@@ -338,53 +241,63 @@ async function handleVerifyReceipt(request, env, ctx) {
 
     try {
         const body = await request.json();
-        const { transactionId, productId, userId } = body;
+        const { receipt, userId, productId: clientProductId } = body;
 
-        if (!transactionId || !userId) {
-            return errorResponse("缺少 transactionId 或 userId", 400, origin);
+        if (!receipt || !userId) {
+            return errorResponse("缺少 receipt 或 userId", 400, origin);
         }
 
-        console.log("验证交易:", { transactionId, productId, userId });
+        console.log("收到收据验证请求，userId:", userId, "客户端 productId:", clientProductId);
 
-        // 1. 调用 App Store Server API 查询交易
-        const txResponse = await getTransactionInfo(transactionId, env);
-        if (!txResponse || !txResponse.signedTransactionInfo) {
-            return errorResponse("无法获取交易信息", 400, origin);
+        const verifyResult = await verifyAppleReceipt(receipt, env);
+
+        if (verifyResult.status !== 0) {
+            console.error("收据验证失败，状态码:", verifyResult.status);
+            return errorResponse(`收据验证失败 (状态码 ${verifyResult.status})`, 400, origin);
         }
 
-        // 2. 解码 JWS，获取交易详情
-        const txPayload = decodeJWSPayload(txResponse.signedTransactionInfo);
-        if (!txPayload) {
-            return errorResponse("交易信息解码失败", 400, origin);
+        let appliedPlan = null;
+
+        // 1. 优先使用前端传来的 productId
+        if (clientProductId) {
+            appliedPlan = mapProductIdToPlan(clientProductId);
+            console.log("使用客户端 productId 识别套餐:", appliedPlan);
         }
 
-        console.log("交易详情:", JSON.stringify(txPayload));
-
-        // 3. 校验 productId
-        const realProductId = txPayload.productId;
-        if (productId && realProductId !== productId) {
-            console.warn("产品ID不匹配，前端:", productId, "苹果:", realProductId);
+        // 2. 如果前端没传或无效，从收据里找「最新」的一笔购买
+        if (!appliedPlan) {
+            const inAppPurchases = verifyResult.receipt?.in_app || [];
+            let latestPurchase = null;
+            let latestTime = 0;
+            for (const purchase of inAppPurchases) {
+                const t = parseInt(purchase.purchase_date_ms || "0");
+                if (t > latestTime) {
+                    latestTime = t;
+                    latestPurchase = purchase;
+                }
+            }
+            if (latestPurchase) {
+                appliedPlan = mapProductIdToPlan(latestPurchase.product_id);
+                console.log("从收据中识别到最新套餐:", appliedPlan, "时间:", latestTime);
+            }
         }
 
-        // 4. 映射套餐类型
-        const planType = mapProductIdToPlan(realProductId);
-        if (!planType) {
-            return errorResponse("未知的产品ID: " + realProductId, 400, origin);
+        if (!appliedPlan) {
+            return errorResponse("未找到有效的内购记录", 400, origin);
         }
 
-        // 5. 应用套餐
-        await applyPlan(userId, planType, env);
-        console.log("套餐已应用:", userId, planType);
+        await applyPlan(userId, appliedPlan, env);
+        console.log("已为用户应用套餐:", userId, appliedPlan);
 
         const finalQuota = await checkUserQuota(userId, env);
         return successResponse(
-            { message: "验证成功", plan: planType },
+            { message: "验证成功", plan: appliedPlan },
             origin,
             { remaining: finalQuota.remaining }
         );
 
     } catch (error) {
-        console.error("验证交易失败:", error);
+        console.error("验证收据失败:", error);
         return errorResponse("服务器处理失败", 500, origin);
     }
 }
@@ -424,40 +337,36 @@ async function handleRestorePurchases(request, env, ctx) {
 
     try {
         const body = await request.json();
-        const { userId, transactions } = body;
+        const { userId, receipts } = body;
 
-        if (!userId || !transactions || !Array.isArray(transactions) || transactions.length === 0) {
-            return errorResponse("缺少 userId 或 transactions 数组", 400, origin);
+        if (!userId || !receipts || !Array.isArray(receipts) || receipts.length === 0) {
+            return errorResponse("缺少 userId 或 receipts 数组", 400, origin);
         }
 
         let anySuccess = false;
         const results = [];
 
-        for (const tx of transactions) {
-            try {
-                const txResponse = await getTransactionInfo(tx.transactionId, env);
-                if (txResponse && txResponse.signedTransactionInfo) {
-                    const txPayload = decodeJWSPayload(txResponse.signedTransactionInfo);
-                    const planType = mapProductIdToPlan(txPayload.productId);
+        for (const receiptData of receipts) {
+            const verifyResult = await verifyAppleReceipt(receiptData, env);
+
+            if (verifyResult.status === 0) {
+                const inAppPurchases = verifyResult.receipt?.in_app || [];
+                for (const purchase of inAppPurchases) {
+                    const planType = mapProductIdToPlan(purchase.product_id);
                     if (planType) {
                         await applyPlan(userId, planType, env);
                         anySuccess = true;
-                        results.push({ transactionId: tx.transactionId, success: true });
                     }
                 }
-            } catch (e) {
-                console.error("恢复交易失败:", tx.transactionId, e);
-                results.push({ transactionId: tx.transactionId, success: false });
+                results.push({ receipt: receiptData, success: true });
+            } else {
+                results.push({ receipt: receiptData, success: false, status: verifyResult.status });
+                console.error(`收据验证失败，状态码: ${verifyResult.status}`);
             }
         }
 
         if (anySuccess) {
-            const finalQuota = await checkUserQuota(userId, env);
-            return successResponse(
-                { message: "恢复成功", results },
-                origin,
-                { remaining: finalQuota.remaining }
-            );
+            return successResponse({ message: "恢复成功", results }, origin);
         } else {
             return errorResponse("没有找到有效的恢复购买记录", 404, origin);
         }
