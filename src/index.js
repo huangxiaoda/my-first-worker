@@ -241,13 +241,13 @@ async function handleVerifyReceipt(request, env, ctx) {
 
     try {
         const body = await request.json();
-        const { receipt, userId } = body;
+        const { receipt, userId, productId: clientProductId } = body;
 
         if (!receipt || !userId) {
             return errorResponse("缺少 receipt 或 userId", 400, origin);
         }
 
-        console.log("收到收据验证请求，userId:", userId, "receipt 长度:", receipt.length);
+        console.log("收到收据验证请求，userId:", userId, "客户端 productId:", clientProductId);
 
         const verifyResult = await verifyAppleReceipt(receipt, env);
 
@@ -256,26 +256,38 @@ async function handleVerifyReceipt(request, env, ctx) {
             return errorResponse(`收据验证失败 (状态码 ${verifyResult.status})`, 400, origin);
         }
 
-        const inAppPurchases = verifyResult.receipt?.in_app || [];
-        let anySuccess = false;
         let appliedPlan = null;
 
-        // 倒序遍历，处理最近一笔
-        for (let i = inAppPurchases.length - 1; i >= 0; i--) {
-            const purchase = inAppPurchases[i];
-            const planType = mapProductIdToPlan(purchase.product_id);
-            if (planType) {
-                await applyPlan(userId, planType, env);
-                anySuccess = true;
-                appliedPlan = planType;
-                console.log("已为用户应用套餐:", userId, planType);
-                break;
+        // 1. 优先使用前端传来的 productId
+        if (clientProductId) {
+            appliedPlan = mapProductIdToPlan(clientProductId);
+            console.log("使用客户端 productId 识别套餐:", appliedPlan);
+        }
+
+        // 2. 如果前端没传或无效，从收据里找「最新」的一笔购买
+        if (!appliedPlan) {
+            const inAppPurchases = verifyResult.receipt?.in_app || [];
+            let latestPurchase = null;
+            let latestTime = 0;
+            for (const purchase of inAppPurchases) {
+                const t = parseInt(purchase.purchase_date_ms || "0");
+                if (t > latestTime) {
+                    latestTime = t;
+                    latestPurchase = purchase;
+                }
+            }
+            if (latestPurchase) {
+                appliedPlan = mapProductIdToPlan(latestPurchase.product_id);
+                console.log("从收据中识别到最新套餐:", appliedPlan, "时间:", latestTime);
             }
         }
 
-        if (!anySuccess) {
+        if (!appliedPlan) {
             return errorResponse("未找到有效的内购记录", 400, origin);
         }
+
+        await applyPlan(userId, appliedPlan, env);
+        console.log("已为用户应用套餐:", userId, appliedPlan);
 
         const finalQuota = await checkUserQuota(userId, env);
         return successResponse(
