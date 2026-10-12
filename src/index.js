@@ -55,7 +55,6 @@ function getCurrentMonth() {
   return `${d.getFullYear()}-${d.getMonth() + 1}`;
 }
 
-// 产品 ID → 套餐类型映射
 function mapProductIdToPlan(productId) {
   if (productId === "com.apheriai.aijob.monthly") return "monthly";
   if (productId === "com.apheriai.aijob.quarterly") return "quarterly";
@@ -64,7 +63,6 @@ function mapProductIdToPlan(productId) {
   return null;
 }
 
-// 检查用户配额
 async function checkUserQuota(userId, env) {
   if (!env.KV_NAMESPACE) return { allowed: true, remaining: 999 };
   const month = getCurrentMonth();
@@ -92,16 +90,11 @@ async function updateUserPlan(userId, planType, env) {
   await env.KV_NAMESPACE.put(planKey, planType);
 }
 
-// ✅ 修改：只在套餐档位变化时才清零 usage，避免「点一下恢复就白送次数」
 async function applyPlan(userId, planType, env) {
   if (!env.KV_NAMESPACE) return;
-
   const planKey = KV_KEYS.USER_PLAN + userId;
   const currentPlan = await env.KV_NAMESPACE.get(planKey) || "free";
-
   await updateUserPlan(userId, planType, env);
-
-  // 订阅型且套餐发生实质变化时，才重置当月用量
   if (planType !== "token30" && currentPlan !== planType) {
     const month = getCurrentMonth();
     const usageKey = KV_KEYS.USER_USAGE + userId + ":" + month;
@@ -109,14 +102,13 @@ async function applyPlan(userId, planType, env) {
   }
 }
 
-// ==================== 苹果收据验证（核心） ====================
+// ==================== 苹果收据验证 ====================
 
 async function verifyAppleReceipt(receipt, env) {
   const sharedSecret = env.APPLE_SHARED_SECRET || null;
   const payload = { "receipt-data": receipt };
   if (sharedSecret) payload.password = sharedSecret;
 
-  // 1. 先向生产环境验证
   let verifyRes = await fetch("https://buy.itunes.apple.com/verifyReceipt", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -124,7 +116,6 @@ async function verifyAppleReceipt(receipt, env) {
   });
   let verifyResult = await verifyRes.json();
 
-  // 2. 状态码 21007 表示这是沙盒收据，改用沙盒验证
   if (verifyResult.status === 21007) {
     verifyRes = await fetch("https://sandbox.itunes.apple.com/verifyReceipt", {
       method: "POST",
@@ -137,40 +128,58 @@ async function verifyAppleReceipt(receipt, env) {
   return verifyResult;
 }
 
-// ✅ 新增：从苹果返回结果里找出「当前有效的订阅套餐」
+// ✅ 改造：返回 { planType, originalTransactionId }
 function findCurrentActivePlan(verifyResult) {
-  // 优先使用 latest_receipt_info（订阅型最新状态），兜底使用 receipt.in_app
   const purchases = verifyResult.latest_receipt_info
     || verifyResult.receipt?.in_app
     || [];
 
   const now = Date.now();
-
-  // 1. 按 original_transaction_id 分组，同一订阅组的续期只保留最新一条
   const latestByGroup = {};
+
   for (const p of purchases) {
     const planType = mapProductIdToPlan(p.product_id);
     if (!planType) continue;
-    if (planType === "token30") continue; // 消耗型跳过，苹果本就不应恢复
+    if (planType === "token30") continue;
 
     const expires = parseInt(p.expires_date_ms || "0", 10);
-    if (!expires) continue; // 没有到期时间，说明不是订阅
+    if (!expires) continue;
 
     const groupId = p.original_transaction_id || p.transaction_id;
     if (!latestByGroup[groupId] || expires > latestByGroup[groupId].expires) {
-      latestByGroup[groupId] = { planType, expires };
+      latestByGroup[groupId] = {
+        planType,
+        expires,
+        originalTransactionId: groupId
+      };
     }
   }
 
-  // 2. 只保留未过期的
   const active = Object.values(latestByGroup).filter(g => g.expires > now);
   if (active.length === 0) return null;
 
-  // 3. 若有多个有效订阅（罕见），取等级最高的
   const rank = { yearly: 3, quarterly: 2, monthly: 1 };
   active.sort((a, b) => (rank[b.planType] || 0) - (rank[a.planType] || 0));
 
-  return active[0].planType;
+  return active[0];
+}
+
+// ✅ 新增：从任意收据里提取 original_transaction_id
+function extractAnyOriginalTransactionId(verifyResult) {
+  const purchases = verifyResult.latest_receipt_info
+    || verifyResult.receipt?.in_app
+    || [];
+
+  let latest = null;
+  let latestTime = 0;
+  for (const p of purchases) {
+    const t = parseInt(p.purchase_date_ms || "0", 10);
+    if (t > latestTime) {
+      latestTime = t;
+      latest = p;
+    }
+  }
+  return latest?.original_transaction_id || null;
 }
 
 // ==================== AI 助手处理 ====================
@@ -217,7 +226,6 @@ async function handleAIAssistant(request, env, ctx) {
     if (!quotaCheck.allowed) return errorResponse(quotaCheck.reason, 403, origin);
 
     let systemPrompt = "", userPrompt = "";
-
     if (action === "optimize-resume") {
       systemPrompt = `你是一位资深的简历优化专家。请根据目标岗位优化简历，要求：
 1. 使用量化表达（用具体数字突出业绩）
@@ -276,7 +284,7 @@ async function handleAIAssistant(request, env, ctx) {
   }
 }
 
-// ==================== 验证收据（单次购买） ====================
+// ==================== 验证收据（购买后调用） ====================
 
 async function handleVerifyReceipt(request, env, ctx) {
   const origin = request.headers.get("Origin") || "";
@@ -285,56 +293,46 @@ async function handleVerifyReceipt(request, env, ctx) {
 
   try {
     const body = await request.json();
-    const { receipt, userId, productId: clientProductId } = body;
+    const { receipt, userId: clientUserId, productId: clientProductId } = body;
 
-    if (!receipt || !userId) {
+    if (!receipt || !clientUserId) {
       return errorResponse("缺少 receipt 或 userId", 400, origin);
     }
 
-    console.log("收到收据验证请求，userId:", userId, "客户端 productId:", clientProductId);
-
     const verifyResult = await verifyAppleReceipt(receipt, env);
     if (verifyResult.status !== 0) {
-      console.error("收据验证失败，状态码:", verifyResult.status);
       return errorResponse(`收据验证失败 (状态码 ${verifyResult.status})`, 400, origin);
     }
 
-    let appliedPlan = null;
+    // ✅ 提取 original_transaction_id
+    const appleUserId = extractAnyOriginalTransactionId(verifyResult);
+    if (!appleUserId) {
+      return errorResponse("无法识别用户身份（缺少 original_transaction_id）", 400, origin);
+    }
 
-    // 1. 优先使用前端传来的 productId
+    // 识别套餐
+    let appliedPlan = null;
     if (clientProductId) {
       appliedPlan = mapProductIdToPlan(clientProductId);
-      console.log("使用客户端 productId 识别套餐:", appliedPlan);
     }
-
-    // 2. 如果前端没传或无效，从收据里找「最新」的一笔购买
     if (!appliedPlan) {
-      const inAppPurchases = verifyResult.receipt?.in_app || [];
-      let latestPurchase = null;
-      let latestTime = 0;
-      for (const purchase of inAppPurchases) {
-        const t = parseInt(purchase.purchase_date_ms || "0");
-        if (t > latestTime) {
-          latestTime = t;
-          latestPurchase = purchase;
-        }
-      }
-      if (latestPurchase) {
-        appliedPlan = mapProductIdToPlan(latestPurchase.product_id);
-        console.log("从收据中识别到最新套餐:", appliedPlan, "时间:", latestTime);
-      }
+      const current = findCurrentActivePlan(verifyResult);
+      appliedPlan = current?.planType || null;
     }
-
     if (!appliedPlan) {
       return errorResponse("未找到有效的内购记录", 400, origin);
     }
 
-    await applyPlan(userId, appliedPlan, env);
-    console.log("已为用户应用套餐:", userId, appliedPlan);
+    // ✅ 用 appleUserId 作为 user key
+    await applyPlan(appleUserId, appliedPlan, env);
 
-    const finalQuota = await checkUserQuota(userId, env);
+    const finalQuota = await checkUserQuota(appleUserId, env);
     return successResponse(
-      { message: "验证成功", plan: appliedPlan },
+      {
+        message: "验证成功",
+        plan: appliedPlan,
+        appleUserId: appleUserId      // ✅ 返回给前端，让前端切换 ID
+      },
       origin,
       { remaining: finalQuota.remaining }
     );
@@ -344,7 +342,61 @@ async function handleVerifyReceipt(request, env, ctx) {
   }
 }
 
-// ==================== 升级套餐处理（保留） ====================
+// ==================== 恢复购买 ====================
+
+async function handleRestorePurchases(request, env, ctx) {
+  const origin = request.headers.get("Origin") || "";
+  if (request.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(origin) });
+
+  try {
+    const body = await request.json();
+    let receipt = body.receipt;
+    if (!receipt && Array.isArray(body.receipts) && body.receipts.length > 0) {
+      receipt = body.receipts[0];
+    }
+    const clientUserId = body.userId;
+
+    if (!clientUserId || !receipt) {
+      return errorResponse("缺少 userId 或 receipt", 400, origin);
+    }
+
+    const verifyResult = await verifyAppleReceipt(receipt, env);
+    if (verifyResult.status !== 0) {
+      return errorResponse(`收据验证失败 (状态码 ${verifyResult.status})`, 400, origin);
+    }
+
+    // ✅ 提取 original_transaction_id
+    const appleUserId = extractAnyOriginalTransactionId(verifyResult);
+    if (!appleUserId) {
+      return errorResponse("无法识别用户身份（缺少 original_transaction_id）", 400, origin);
+    }
+
+    // 找当前有效订阅
+    const active = findCurrentActivePlan(verifyResult);
+    if (!active) {
+      return errorResponse("没有找到有效的订阅记录", 404, origin);
+    }
+
+    // ✅ 用 appleUserId 作为 user key
+    await applyPlan(appleUserId, active.planType, env);
+
+    const finalQuota = await checkUserQuota(appleUserId, env);
+    return successResponse(
+      {
+        message: "恢复成功",
+        plan: active.planType,
+        appleUserId: appleUserId      // ✅ 返回给前端
+      },
+      origin,
+      { remaining: finalQuota.remaining }
+    );
+  } catch (error) {
+    console.error("恢复购买处理失败:", error);
+    return errorResponse("服务器处理失败", 500, origin);
+  }
+}
+
+// ==================== 升级套餐 ====================
 
 async function handleUpgradePlan(request, env, ctx) {
   const origin = request.headers.get("Origin") || "";
@@ -353,68 +405,18 @@ async function handleUpgradePlan(request, env, ctx) {
   try {
     const body = await request.json();
     const { userId, planType, receipt } = body;
-
     if (!userId || !planType) return errorResponse("缺少 userId 或 planType", 400, origin);
-
     if (receipt) {
       const verifyResult = await verifyAppleReceipt(receipt, env);
       if (verifyResult.status !== 0) {
         return errorResponse(`收据验证失败 (${verifyResult.status})`, 400, origin);
       }
     }
-
     await applyPlan(userId, planType, env);
     return successResponse({ message: "套餐升级成功" }, origin);
   } catch (error) {
     console.error("升级套餐错误:", error);
     return errorResponse("服务器内部错误", 500, origin);
-  }
-}
-
-// ==================== ✅ 恢复购买处理（完全重写） ====================
-
-async function handleRestorePurchases(request, env, ctx) {
-  const origin = request.headers.get("Origin") || "";
-  if (request.method === "OPTIONS") return new Response(null, { headers: getCorsHeaders(origin) });
-
-  try {
-    const body = await request.json();
-    // ✅ 接收单条 receipt（兼容旧格式 receipts 数组）
-    let receipt = body.receipt;
-    if (!receipt && Array.isArray(body.receipts) && body.receipts.length > 0) {
-      receipt = body.receipts[0];
-    }
-    const userId = body.userId;
-
-    if (!userId || !receipt) {
-      return errorResponse("缺少 userId 或 receipt", 400, origin);
-    }
-
-    const verifyResult = await verifyAppleReceipt(receipt, env);
-    if (verifyResult.status !== 0) {
-      console.error("恢复购买：收据验证失败，状态码:", verifyResult.status);
-      return errorResponse(`收据验证失败 (状态码 ${verifyResult.status})`, 400, origin);
-    }
-
-    // ✅ 只取「当前有效订阅」并只应用一次
-    const activePlan = findCurrentActivePlan(verifyResult);
-
-    if (!activePlan) {
-      return errorResponse("没有找到有效的订阅记录", 404, origin);
-    }
-
-    await applyPlan(userId, activePlan, env);
-    console.log("恢复购买成功，userId:", userId, "plan:", activePlan);
-
-    const finalQuota = await checkUserQuota(userId, env);
-    return successResponse(
-      { message: "恢复成功", plan: activePlan },
-      origin,
-      { remaining: finalQuota.remaining }
-    );
-  } catch (error) {
-    console.error("恢复购买处理失败:", error);
-    return errorResponse("服务器处理失败", 500, origin);
   }
 }
 
@@ -435,21 +437,10 @@ export default {
       });
     }
 
-    if (url.pathname === "/api/ai-assistant") {
-      return handleAIAssistant(request, env, ctx);
-    }
-
-    if (url.pathname === "/api/verify-receipt") {
-      return handleVerifyReceipt(request, env, ctx);
-    }
-
-    if (url.pathname === "/api/upgrade-plan") {
-      return handleUpgradePlan(request, env, ctx);
-    }
-
-    if (url.pathname === "/api/restore-purchases") {
-      return handleRestorePurchases(request, env, ctx);
-    }
+    if (url.pathname === "/api/ai-assistant") return handleAIAssistant(request, env, ctx);
+    if (url.pathname === "/api/verify-receipt") return handleVerifyReceipt(request, env, ctx);
+    if (url.pathname === "/api/upgrade-plan") return handleUpgradePlan(request, env, ctx);
+    if (url.pathname === "/api/restore-purchases") return handleRestorePurchases(request, env, ctx);
 
     if (url.pathname === "/") {
       return new Response("Welcome to AI Job Assistant API!", {
