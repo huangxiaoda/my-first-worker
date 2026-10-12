@@ -365,27 +365,49 @@ async function handleRestorePurchases(request, env, ctx) {
       return errorResponse(`收据验证失败 (状态码 ${verifyResult.status})`, 400, origin);
     }
 
-    // ✅ 提取 original_transaction_id
     const appleUserId = extractAnyOriginalTransactionId(verifyResult);
     if (!appleUserId) {
       return errorResponse("无法识别用户身份（缺少 original_transaction_id）", 400, origin);
     }
 
-    // 找当前有效订阅
-    const active = findCurrentActivePlan(verifyResult);
-    if (!active) {
+    // ✅ 改进：找出所有有效订阅，按「有效期」从晚到早排序
+    const activePlans = findActivePlansSorted(verifyResult);
+
+    if (activePlans.length === 0) {
       return errorResponse("没有找到有效的订阅记录", 404, origin);
     }
 
-    // ✅ 用 appleUserId 作为 user key
-    await applyPlan(appleUserId, active.planType, env);
+    // ✅ 关键：只恢复「不在当前用户 plan 里的」订阅
+    const planKey = KV_KEYS.USER_PLAN + appleUserId;
+    const currentPlan = await env.KV_NAMESPACE.get(planKey) || "free";
+    const currentLimit = PLAN_LIMITS[currentPlan] || 5;
 
+    // 选一个"最优"的：如果当前 plan 还在，且当前 plan 的额度 >= 恢复里最好的，就不动
+    const bestRestore = activePlans[0];  // 按有效期排序后的第一个
+    const bestRestoreLimit = PLAN_LIMITS[bestRestore.planType] || 5;
+
+    if (currentPlan !== "free" && currentLimit >= bestRestoreLimit) {
+      // 当前 plan 额度已经 >= 恢复结果，保持不动，只回一个提示
+      const finalQuota = await checkUserQuota(appleUserId, env);
+      return successResponse(
+        {
+          message: "恢复成功（当前套餐额度已不低于恢复记录）",
+          plan: currentPlan,
+          appleUserId: appleUserId
+        },
+        origin,
+        { remaining: finalQuota.remaining }
+      );
+    }
+
+    // 否则才应用恢复结果
+    await applyPlan(appleUserId, bestRestore.planType, env);
     const finalQuota = await checkUserQuota(appleUserId, env);
     return successResponse(
       {
         message: "恢复成功",
-        plan: active.planType,
-        appleUserId: appleUserId      // ✅ 返回给前端
+        plan: bestRestore.planType,
+        appleUserId: appleUserId
       },
       origin,
       { remaining: finalQuota.remaining }
@@ -394,6 +416,37 @@ async function handleRestorePurchases(request, env, ctx) {
     console.error("恢复购买处理失败:", error);
     return errorResponse("服务器处理失败", 500, origin);
   }
+}
+
+// ✅ 新增：找出所有有效订阅，按「有效期」从晚到早排序
+function findActivePlansSorted(verifyResult) {
+  const purchases = verifyResult.latest_receipt_info
+    || verifyResult.receipt?.in_app
+    || [];
+  const now = Date.now();
+
+  // 按 original_transaction_id 分组，每组取有效期最晚的
+  const latestByGroup = {};
+  for (const p of purchases) {
+    const planType = mapProductIdToPlan(p.product_id);
+    if (!planType) continue;
+    if (planType === "token30") continue;
+
+    const expires = parseInt(p.expires_date_ms || "0", 10);
+    if (!expires || expires < now) continue;  // 已过期跳过
+
+    const groupId = p.original_transaction_id || p.transaction_id;
+    if (!latestByGroup[groupId] || expires > latestByGroup[groupId].expires) {
+      latestByGroup[groupId] = {
+        planType,
+        expires,
+        originalTransactionId: groupId
+      };
+    }
+  }
+
+  // 按有效期从晚到早排序
+  return Object.values(latestByGroup).sort((a, b) => b.expires - a.expires);
 }
 
 // ==================== 升级套餐 ====================
