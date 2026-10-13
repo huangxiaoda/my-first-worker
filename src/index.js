@@ -63,7 +63,7 @@ function mapProductIdToPlan(productId) {
   return null;
 }
 
-// ==================== ✅ 新增：token30 独立余额 ====================
+// ==================== token30 独立余额 ====================
 
 async function getTokenBalance(userId, env) {
   if (!env.KV_NAMESPACE) return 0;
@@ -90,7 +90,7 @@ async function consumeTokenBalance(userId, env) {
   return true;
 }
 
-// ==================== ✅ 改造：配额检查（订阅用完扣 token） ====================
+// ==================== 配额检查 ====================
 
 async function checkUserQuota(userId, env) {
   if (!env.KV_NAMESPACE) return { allowed: true, remaining: 999 };
@@ -108,7 +108,6 @@ async function checkUserQuota(userId, env) {
   const limit = PLAN_LIMITS[plan];
   const remaining = Math.max(0, limit - used);
 
-  // ✅ 订阅额度用完，看 token 余额
   if (remaining <= 0) {
     const tokenBalance = await getTokenBalance(userId, env);
     if (tokenBalance > 0) {
@@ -126,8 +125,6 @@ async function checkUserQuota(userId, env) {
 
   return { allowed: true, remaining, plan, used, limit, source: "plan" };
 }
-
-// ==================== ✅ 改造：扣次数（优先扣订阅，再扣 token） ====================
 
 async function incrementUserUsage(userId, env) {
   if (!env.KV_NAMESPACE) return;
@@ -155,18 +152,14 @@ async function updateUserPlan(userId, planType, env) {
   await env.KV_NAMESPACE.put(planKey, planType);
 }
 
-// ==================== ✅ 改造：applyPlan（token30 独立处理） ====================
-
 async function applyPlan(userId, planType, env) {
   if (!env.KV_NAMESPACE) return;
 
-  // ✅ token30：累加到独立余额字段，不动 plan 和 usage
   if (planType === "token30") {
     await addTokenBalance(userId, 30, env);
     return;
   }
 
-  // 订阅类：原有逻辑
   const planKey = KV_KEYS.USER_PLAN + userId;
   const currentPlan = await env.KV_NAMESPACE.get(planKey) || "free";
   await updateUserPlan(userId, planType, env);
@@ -256,7 +249,6 @@ function extractAnyOriginalTransactionId(verifyResult) {
   return latest?.original_transaction_id || null;
 }
 
-// ✅ 找出所有有效订阅，按有效期从晚到早排序
 function findActivePlansSorted(verifyResult) {
   const purchases = verifyResult.latest_receipt_info
     || verifyResult.receipt?.in_app
@@ -407,10 +399,8 @@ async function handleVerifyReceipt(request, env, ctx) {
       return errorResponse(`收据验证失败 (状态码 ${verifyResult.status})`, 400, origin);
     }
 
+    // 依然提取 appleUserId 用于日志和后续跨设备恢复
     const appleUserId = extractAnyOriginalTransactionId(verifyResult);
-    if (!appleUserId) {
-      return errorResponse("无法识别用户身份（缺少 original_transaction_id）", 400, origin);
-    }
 
     let appliedPlan = null;
     if (clientProductId) {
@@ -424,14 +414,15 @@ async function handleVerifyReceipt(request, env, ctx) {
       return errorResponse("未找到有效的内购记录", 400, origin);
     }
 
-    await applyPlan(appleUserId, appliedPlan, env);
+    // ✅ 关键：用前端传来的 userId（deviceId）作为存储 key
+    await applyPlan(clientUserId, appliedPlan, env);
 
-    const finalQuota = await checkUserQuota(appleUserId, env);
+    const finalQuota = await checkUserQuota(clientUserId, env);
     return successResponse(
       {
         message: "验证成功",
         plan: appliedPlan,
-        appleUserId: appleUserId
+        appleUserId: appleUserId || null
       },
       origin,
       { remaining: finalQuota.remaining }
@@ -466,17 +457,14 @@ async function handleRestorePurchases(request, env, ctx) {
     }
 
     const appleUserId = extractAnyOriginalTransactionId(verifyResult);
-    if (!appleUserId) {
-      return errorResponse("无法识别用户身份（缺少 original_transaction_id）", 400, origin);
-    }
 
     const activePlans = findActivePlansSorted(verifyResult);
-
     if (activePlans.length === 0) {
       return errorResponse("没有找到有效的订阅记录", 404, origin);
     }
 
-    const planKey = KV_KEYS.USER_PLAN + appleUserId;
+    // ✅ 关键：用前端传来的 userId（deviceId）作为存储 key
+    const planKey = KV_KEYS.USER_PLAN + clientUserId;
     const currentPlan = await env.KV_NAMESPACE.get(planKey) || "free";
     const currentLimit = PLAN_LIMITS[currentPlan] || 5;
 
@@ -484,25 +472,25 @@ async function handleRestorePurchases(request, env, ctx) {
     const bestRestoreLimit = PLAN_LIMITS[bestRestore.planType] || 5;
 
     if (currentPlan !== "free" && currentLimit >= bestRestoreLimit) {
-      const finalQuota = await checkUserQuota(appleUserId, env);
+      const finalQuota = await checkUserQuota(clientUserId, env);
       return successResponse(
         {
           message: "恢复成功（当前套餐额度已不低于恢复记录）",
           plan: currentPlan,
-          appleUserId: appleUserId
+          appleUserId: appleUserId || null
         },
         origin,
         { remaining: finalQuota.remaining }
       );
     }
 
-    await applyPlan(appleUserId, bestRestore.planType, env);
-    const finalQuota = await checkUserQuota(appleUserId, env);
+    await applyPlan(clientUserId, bestRestore.planType, env);
+    const finalQuota = await checkUserQuota(clientUserId, env);
     return successResponse(
       {
         message: "恢复成功",
         plan: bestRestore.planType,
-        appleUserId: appleUserId
+        appleUserId: appleUserId || null
       },
       origin,
       { remaining: finalQuota.remaining }
